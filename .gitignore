@@ -1,0 +1,14 @@
+# raw and processed data, model weights, logs, etc.
+/data/
+
+# machine-specific environment settings
+/.env
+
+# Python cache
+__pycache__/
+
+# virtualenv
+/venv/
+
+# editors
+/.vscode/
