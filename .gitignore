@@ -1,5 +1,6 @@
 # raw and processed data, model weights, logs, etc.
 /data/
+/models/
 
 # machine-specific environment settings
 /.env
