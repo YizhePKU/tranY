@@ -1,5 +1,5 @@
 # Convert between Python AST and MR.
-# For the MR, each AST node is represented by a dictionary. Constants are preserved as is.
+# An MR node is either a dictionary or a constant(including None). Lists are not considered MR.
 # The `Python.asdl` file serves as a schema for the MR.
 
 # Quote from https://docs.python.org/3/library/ast.html#ast.AST._fields
