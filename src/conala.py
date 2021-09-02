@@ -89,9 +89,9 @@ def canonicalize(intent, mr):
         raise SyntaxError("Cannot match var/literal between intent and snippet")
 
     # deal with backticks first because backticks may contain single/double quotes
-    intent = re.sub(r"`.*`", generate_placeholder, intent)
-    intent = re.sub(r'".*"', generate_placeholder, intent)
-    intent = re.sub(r"'.*'", generate_placeholder, intent)
+    intent = re.sub(r"`.*?`", generate_placeholder, intent)
+    intent = re.sub(r'".*?"', generate_placeholder, intent)
+    intent = re.sub(r"'.*?'", generate_placeholder, intent)
     return intent, mr, ph2mr
 
 
