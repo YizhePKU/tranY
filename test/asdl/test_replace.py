@@ -1,9 +1,9 @@
 import pytest
 
-from asdl.transform import transform_mr
+from asdl.replace import replace_mr
 
 
-def test_transform_mr():
+def test_replace_mr():
     mr = {
         "_tag": "func",
         "args": [
@@ -12,14 +12,8 @@ def test_transform_mr():
         ],
     }
 
-    def fn(mr):
-        if mr == {"_tag": "tag2"}:
-            return {"_tag": "tag3"}
-        else:
-            return mr
+    new_mr, found = replace_mr(mr, {"_tag": "tag2"}, {"_tag": "tag3"})
 
-    new_mr = transform_mr(mr, fn)
-    
     assert new_mr == {
         "_tag": "func",
         "args": [
@@ -27,3 +21,4 @@ def test_transform_mr():
             {"_tag": "tag3"},
         ],
     }
+    assert found == True
