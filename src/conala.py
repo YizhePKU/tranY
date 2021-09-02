@@ -5,6 +5,7 @@ import re
 import ast
 
 from asdl.convert import ast_to_mr
+from asdl.replace import replace_mr
 from asdl.transform import transform_mr
 
 
@@ -55,27 +56,42 @@ def canonicalize(intent, mr):
     #   2. replace quoted content from the intent with the placeholder
     #   3. parse quoted content to MR. include single/double quotes but not backticks when parsing
     #   4. replace target MR to {"_tag": "placeholder", "value": "<ph_0>"}
+    #
+    # Usually, code is quoted with backticks and strings are quoted with single/double quotes.
+    # However, sometimes single/double quotes are used with code as well.
+    # So for single/double quotes, we'll fallback when the string literal is not found in MR.
     ph2mr = {}
 
     def generate_placeholder(match):
+        nonlocal mr
         placeholder = f"<ph_{len(ph2mr)}>"
-        quoted_content = match.group(1)
-        mr = ast_to_mr(ast.parse(quoted_content))
-        # usually quoted_content is an expression
-        if mr["body"][0]["_tag"] != "Expr":
+        tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
+        quoted_content = match.group(0)
+        # for single/double quotes, try matching string literals first
+        if quoted_content[0] != "`":
+            target_mr = ast_to_mr(ast.parse(quoted_content))
+            mr, found = replace_mr(
+                mr, target_mr["body"][0]["value"], tagged_placeholder
+            )
+            if found:
+                ph2mr[placeholder] = target_mr["body"][0]["value"]
+                return placeholder
+        # fallback to matching inner code
+        target_mr = ast_to_mr(ast.parse(quoted_content[1:-1]))
+        # assume inner code is an expression
+        if target_mr["body"][0]["_tag"] != "Expr":
             raise SyntaxError("Quoted content is not an expression.")
-        ph2mr[placeholder] = mr["body"][0]["value"]
-        return placeholder
+        mr, found = replace_mr(mr, target_mr["body"][0]["value"], tagged_placeholder)
+        if found:
+            ph2mr[placeholder] = target_mr["body"][0]["value"]
+            return placeholder
+        # everything fails, give up
+        raise SyntaxError("Cannot match var/literal between intent and snippet")
 
     # deal with backticks first because backticks may contain single/double quotes
-    intent = re.sub(r"`(.*)`", generate_placeholder, intent)
-    intent = re.sub(r'(".*")', generate_placeholder, intent)
-    intent = re.sub(r"('.*')", generate_placeholder, intent)
-
-    for placeholder, target_mr in ph2mr.items():
-        tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
-        mr = transform_mr(mr, lambda mr: tagged_placeholder if mr == target_mr else mr)
-
+    intent = re.sub(r"`.*`", generate_placeholder, intent)
+    intent = re.sub(r'".*"', generate_placeholder, intent)
+    intent = re.sub(r"'.*'", generate_placeholder, intent)
     return intent, mr, ph2mr
 
 
