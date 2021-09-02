@@ -58,8 +58,8 @@ def canonicalize(intent, mr):
     #   4. replace target MR to {"_tag": "placeholder", "value": "<ph_0>"}
     #
     # Usually, code is quoted with backticks and strings are quoted with single/double quotes.
-    # However, sometimes single/double quotes are used with code as well.
-    # So for single/double quotes, we'll fallback when the string literal is not found in MR.
+    # However, sometimes single/double quotes are used with code as well, and vice versa.
+    # So we'll always try matching string literals, then fallback to code.
     ph2mr = {}
 
     def generate_placeholder(match):
@@ -67,19 +67,21 @@ def canonicalize(intent, mr):
         placeholder = f"<ph_{len(ph2mr)}>"
         tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
         quoted_content = match.group(0)
-        # for single/double quotes, try matching string literals first
-        if quoted_content[0] != "`":
-            target_mr = ast_to_mr(ast.parse(quoted_content))
-            mr, found = replace_mr(
-                mr, target_mr["body"][0]["value"], tagged_placeholder
-            )
-            if found:
-                ph2mr[placeholder] = target_mr["body"][0]["value"]
-                return placeholder
+        # try matching string literals first
+        target_mr = ast_to_mr(ast.parse(f"'{quoted_content[1:-1]}'"))
+        mr, found = replace_mr(
+            mr, target_mr["body"][0]["value"], tagged_placeholder
+        )
+        if found:
+            ph2mr[placeholder] = target_mr["body"][0]["value"]
+            return placeholder
         # fallback to matching inner code
         target_mr = ast_to_mr(ast.parse(quoted_content[1:-1]))
         # assume inner code is an expression
-        if target_mr["body"][0]["_tag"] != "Expr":
+        try:
+            if target_mr["body"][0]["_tag"] != "Expr":
+                raise SyntaxError("Quoted content is not an expression.")
+        except (IndexError, KeyError):
             raise SyntaxError("Quoted content is not an expression.")
         mr, found = replace_mr(mr, target_mr["body"][0]["value"], tagged_placeholder)
         if found:
