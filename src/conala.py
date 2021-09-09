@@ -42,10 +42,10 @@ def canonicalize(intent, mr):
     must be copied into the generated snippet. Replacing them with placeholders makes it
     more likely for the tranX model to invoke the copy mechanism.
 
-    Returns (new_intent, new_mr, ph2mr) where ph2mr is a dictionary that maps placeholders
+    Returns (new_intent, mr, ph2mr) where ph2mr is a dictionary that maps placeholders
     to original MR representation in the snippet.
 
-    Note that new_mr may share parts with the original mr. Handle with care.
+    Note that mr is updated in place.
 
     Raises SyntaxError if anything goes wrong.
     """
@@ -89,14 +89,18 @@ def canonicalize(intent, mr):
 
 
 def uncanonicalize(mr, ph2mr):
-    """Replace placeholders in MR back to original.
+    """Replace placeholders in MR back to the original.
 
-    Returns new_mr that can be converted back to a valid AST.
+    Returns mr that can be converted back to a valid AST.
 
-    Note that new_mr may share parts with the original mr. Handle with care.
+    Note that mr is updated in place.
     """
-    for placeholder, target_mr in ph2mr.items():
-        tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
-        mr = transform_mr(mr, lambda mr: target_mr if mr == tagged_placeholder else mr)
-
+    for placeholder, target in ph2mr.items():
+        for node in walk(mr):
+            # replace identifiers
+            if tagged(node, "Name") and node["id"] == placeholder:
+                node["id"] = target
+            # replace string literals
+            if tagged(node, "Constant") and node["value"] == placeholder:
+                node["value"] = target
     return mr
