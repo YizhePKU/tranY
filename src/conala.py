@@ -3,7 +3,6 @@
 import json
 import re
 
-from asdl.transform import transform_mr
 from asdl.utils import walk, tagged
 
 
