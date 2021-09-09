@@ -85,14 +85,16 @@ def canonicalize(intent, mr):
         placeholder = f"<ph_{len(ph2mr)}>"
         tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
         s = match.group()
-        targets = [
-            extract(ast_to_mr(ast.parse(f"'{s[1:-1]}'"))),  # parse as string
-            extract(ast_to_mr(ast.parse(s[1:-1]))),  # parse as expression
-            dict(
+        # use lambda to delay evaluation
+        target_fns = [
+            lambda: extract(ast_to_mr(ast.parse(f"'{s[1:-1]}'"))),  # parse as string
+            lambda: extract(ast_to_mr(ast.parse(s[1:-1]))),  # parse as expression
+            lambda: dict(
                 extract(ast_to_mr(ast.parse(s[1:-1]))), ctx=dict(_tag="Store")
             ),  # parse as variable with 'ctx': 'Store'
         ]
-        for target in targets:
+        for target_fn in target_fns:
+            target = target_fn()
             mr, found = replace_mr(mr, target, tagged_placeholder)
             if found:
                 ph2mr[placeholder] = target

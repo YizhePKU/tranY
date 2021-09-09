@@ -33,3 +33,12 @@ def test_canonicalize_variable_store():
     assert new_intent == "<ph_0> and <ph_1>"
     assert uncanonicalize(new_mr, ph2mr) == mr
     assert len(ph2mr) == 2
+
+def test_canonicalize_weird_string():
+    intent = "Hello 'ef-sv-3=:'"
+    snippet = "print('ef-sv-3=:')"
+    mr = ast_to_mr(ast.parse(snippet))
+    new_intent, new_mr, ph2mr = canonicalize(intent, mr)
+    assert new_intent == "Hello <ph_0>"
+    assert uncanonicalize(new_mr, ph2mr) == mr
+    assert len(ph2mr) == 1
