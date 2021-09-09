@@ -68,7 +68,9 @@ def canonicalize(intent, mr):
     # Why change ctx to 'Store'?
     # A variable can be used in two context: 'Load' or 'Store'.
     # But parsing a variable only generates 'Load'; we need to handle 'Store' as well.
-    ph2mr = {}
+
+    ph2mr = {} # map placeholders to original MR
+    quote2ph = {} # map quoted content to placeholder(to resolve duplicates)
 
     def extract(parsed_mr):
         """Extract inner mr from parsed mr."""
@@ -82,23 +84,27 @@ def canonicalize(intent, mr):
 
     def generate_placeholder(match):
         nonlocal mr
-        placeholder = f"<ph_{len(ph2mr)}>"
-        tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
-        s = match.group()
+        quote = match.group()
+        if quote in quote2ph:
+            return quote2ph[quote]
+        else:
+            ph = f"<ph_{len(ph2mr)}>"
+            quote2ph[quote] = ph
+        tagged_ph = {"_tag": "placeholder", "value": ph}
         # use lambda to delay evaluation
         target_fns = [
-            lambda: extract(ast_to_mr(ast.parse(f"'{s[1:-1]}'"))),  # parse as string
-            lambda: extract(ast_to_mr(ast.parse(s[1:-1]))),  # parse as expression
+            lambda: extract(ast_to_mr(ast.parse(f"'{quote[1:-1]}'"))),  # parse as string
+            lambda: extract(ast_to_mr(ast.parse(quote[1:-1]))),  # parse as expression
             lambda: dict(
-                extract(ast_to_mr(ast.parse(s[1:-1]))), ctx=dict(_tag="Store")
+                extract(ast_to_mr(ast.parse(quote[1:-1]))), ctx=dict(_tag="Store")
             ),  # parse as variable with 'ctx': 'Store'
         ]
         for target_fn in target_fns:
             target = target_fn()
-            mr, found = replace_mr(mr, target, tagged_placeholder)
+            mr, found = replace_mr(mr, target, tagged_ph)
             if found:
-                ph2mr[placeholder] = target
-                return placeholder
+                ph2mr[ph] = target
+                return ph
         raise SyntaxError("Cannot match var/literal between intent and snippet")
 
     # deal with backticks first because backticks may contain single/double quotes

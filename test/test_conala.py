@@ -42,3 +42,12 @@ def test_canonicalize_weird_string():
     assert new_intent == "Hello <ph_0>"
     assert uncanonicalize(new_mr, ph2mr) == mr
     assert len(ph2mr) == 1
+
+def test_canonicalize_duplicate_intent():
+    intent = "create `result` from `list1` if first element of `list1` is in `list2`"
+    snippet = "result = [x for x in list1 if x[0] in list2]"
+    mr = ast_to_mr(ast.parse(snippet))
+    new_intent, new_mr, ph2mr = canonicalize(intent, mr)
+    assert new_intent == "create <ph_0> from <ph_1> if first element of <ph_1> is in <ph_2>"
+    assert uncanonicalize(new_mr, ph2mr) == mr
+    assert len(ph2mr) == 3
