@@ -2,11 +2,9 @@
 
 import json
 import re
-import ast
 
-from asdl.convert import ast_to_mr
-from asdl.replace import replace_mr
 from asdl.transform import transform_mr
+from asdl.utils import walk, tagged
 
 
 def load_intent_snippet(filepath, rewrite_intent="when-available"):
@@ -54,60 +52,36 @@ def canonicalize(intent, mr):
     # For each pair of quotes(single/double/backtick) in the intent, do the followings:
     #   1. generate a placeholder, such as <ph_0>
     #   2. replace quoted content from the intent with the placeholder
-    #   3. generate target MR in the following ways(read on for explanation):
-    #        parse quoted content as a string
-    #        parse quoted content as an expression
-    #        parse quoted content as an expression, but change 'ctx': 'Load' to 'ctx': 'Store'
-    #   4. replace target MR to {"_tag": "placeholder", "value": "<ph_0>"}
+    #   3. walk target MR and update various tags in place:
+    #        identifiers -- replace with `placeholder`
+    #        string literals -- replace with "placeholder"
+    #        lists, dicts, and sets -- no-op for now
     #
-    # Why parse quoted content as string first?
-    # Usually, code is quoted with backticks and strings are quoted with single/double quotes.
-    # However, sometimes single/double quotes are used with code as well, and vice versa.
-    # So we'll always try matching string literals, then fallback to code.
-    #
-    # Why change ctx to 'Store'?
-    # A variable can be used in two context: 'Load' or 'Store'.
-    # But parsing a variable only generates 'Load'; we need to handle 'Store' as well.
+    # This replacement strategy covers ~90% of quotes in the training set.
 
-    ph2mr = {} # map placeholders to original MR
-    quote2ph = {} # map quoted content to placeholder(to resolve duplicates)
-
-    def extract(parsed_mr):
-        """Extract inner mr from parsed mr."""
-        # assume inner code is an expression
-        try:
-            if parsed_mr["body"][0]["_tag"] != "Expr":
-                raise SyntaxError("Quoted content is not an expression.")
-        except (IndexError, KeyError):
-            raise SyntaxError("Quoted content is not an expression.")
-        return parsed_mr["body"][0]["value"]
+    ph2mr = {}  # map placeholders to original MR
+    quote2ph = {}  # map quoted content to placeholder(to resolve duplicates)
 
     def generate_placeholder(match):
-        nonlocal mr
-        quote = match.group()
+        quote = match.group()[1:-1]
+        # returns immediately if we've processed this quote already
         if quote in quote2ph:
             return quote2ph[quote]
-        else:
-            ph = f"<ph_{len(ph2mr)}>"
-            quote2ph[quote] = ph
-        tagged_ph = {"_tag": "placeholder", "value": ph}
-        # use lambda to delay evaluation
-        target_fns = [
-            lambda: extract(ast_to_mr(ast.parse(f"'{quote[1:-1]}'"))),  # parse as string
-            lambda: extract(ast_to_mr(ast.parse(quote[1:-1]))),  # parse as expression
-            lambda: dict(
-                extract(ast_to_mr(ast.parse(quote[1:-1]))), ctx=dict(_tag="Store")
-            ),  # parse as variable with 'ctx': 'Store'
-        ]
-        for target_fn in target_fns:
-            target = target_fn()
-            mr, found = replace_mr(mr, target, tagged_ph)
-            if found:
-                ph2mr[ph] = target
-                return ph
-        raise SyntaxError("Cannot match var/literal between intent and snippet")
+        # otherwise generate a new placeholder and proceed
+        ph = f"<ph_{len(ph2mr)}>"
+        quote2ph[quote] = ph
+        for node in walk(mr):
+            # replace identifiers
+            if tagged(node, "Name") and node["id"] == quote:
+                ph2mr[ph] = node["id"]
+                node["id"] = ph
+            # replace string literals
+            if tagged(node, "Constant") and node["value"] == quote:
+                ph2mr[ph] = node["value"]
+                node["value"] = ph
+        return ph
 
-    # deal with backticks first because backticks may contain single/double quotes
+    # FIXME: regular doesn't work when intent contains escaped quotes
     intent = re.sub(r"`.*?`", generate_placeholder, intent)
     intent = re.sub(r'".*?"', generate_placeholder, intent)
     intent = re.sub(r"'.*?'", generate_placeholder, intent)
