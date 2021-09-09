@@ -54,40 +54,49 @@ def canonicalize(intent, mr):
     # For each pair of quotes(single/double/backtick) in the intent, do the followings:
     #   1. generate a placeholder, such as <ph_0>
     #   2. replace quoted content from the intent with the placeholder
-    #   3. parse quoted content to MR. include single/double quotes but not backticks when parsing
+    #   3. generate target MR in the following ways(read on for explanation):
+    #        parse quoted content as a string
+    #        parse quoted content as an expression
+    #        parse quoted content as an expression, but change 'ctx': 'Load' to 'ctx': 'Store'
     #   4. replace target MR to {"_tag": "placeholder", "value": "<ph_0>"}
     #
+    # Why parse quoted content as string first?
     # Usually, code is quoted with backticks and strings are quoted with single/double quotes.
     # However, sometimes single/double quotes are used with code as well, and vice versa.
     # So we'll always try matching string literals, then fallback to code.
+    #
+    # Why change ctx to 'Store'?
+    # A variable can be used in two context: 'Load' or 'Store'.
+    # But parsing a variable only generates 'Load'; we need to handle 'Store' as well.
     ph2mr = {}
+
+    def extract(parsed_mr):
+        """Extract inner mr from parsed mr."""
+        # assume inner code is an expression
+        try:
+            if parsed_mr["body"][0]["_tag"] != "Expr":
+                raise SyntaxError("Quoted content is not an expression.")
+        except (IndexError, KeyError):
+            raise SyntaxError("Quoted content is not an expression.")
+        return parsed_mr["body"][0]["value"]
 
     def generate_placeholder(match):
         nonlocal mr
         placeholder = f"<ph_{len(ph2mr)}>"
         tagged_placeholder = {"_tag": "placeholder", "value": placeholder}
-        quoted_content = match.group(0)
-        # try matching string literals first
-        target_mr = ast_to_mr(ast.parse(f"'{quoted_content[1:-1]}'"))
-        mr, found = replace_mr(
-            mr, target_mr["body"][0]["value"], tagged_placeholder
-        )
-        if found:
-            ph2mr[placeholder] = target_mr["body"][0]["value"]
-            return placeholder
-        # fallback to matching inner code
-        target_mr = ast_to_mr(ast.parse(quoted_content[1:-1]))
-        # assume inner code is an expression
-        try:
-            if target_mr["body"][0]["_tag"] != "Expr":
-                raise SyntaxError("Quoted content is not an expression.")
-        except (IndexError, KeyError):
-            raise SyntaxError("Quoted content is not an expression.")
-        mr, found = replace_mr(mr, target_mr["body"][0]["value"], tagged_placeholder)
-        if found:
-            ph2mr[placeholder] = target_mr["body"][0]["value"]
-            return placeholder
-        # everything fails, give up
+        s = match.group()
+        targets = [
+            extract(ast_to_mr(ast.parse(f"'{s[1:-1]}'"))),  # parse as string
+            extract(ast_to_mr(ast.parse(s[1:-1]))),  # parse as expression
+            dict(
+                extract(ast_to_mr(ast.parse(s[1:-1]))), ctx=dict(_tag="Store")
+            ),  # parse as variable with 'ctx': 'Store'
+        ]
+        for target in targets:
+            mr, found = replace_mr(mr, target, tagged_placeholder)
+            if found:
+                ph2mr[placeholder] = target
+                return placeholder
         raise SyntaxError("Cannot match var/literal between intent and snippet")
 
     # deal with backticks first because backticks may contain single/double quotes

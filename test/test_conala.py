@@ -24,3 +24,12 @@ def test_canonicalize_double_backticks():
     assert new_intent == "<ph_0> and <ph_1>"
     assert uncanonicalize(new_mr, ph2mr) == mr
     assert len(ph2mr) == 2
+
+def test_canonicalize_variable_store():
+    intent = "`var1` and 'var2'"
+    snippet = "var1 = var2"
+    mr = ast_to_mr(ast.parse(snippet))
+    new_intent, new_mr, ph2mr = canonicalize(intent, mr)
+    assert new_intent == "<ph_0> and <ph_1>"
+    assert uncanonicalize(new_mr, ph2mr) == mr
+    assert len(ph2mr) == 2
