@@ -52,3 +52,13 @@ def test_canonicalize_duplicate_intent():
     assert new_intent == "create <ph_0> from <ph_1> if first element of <ph_1> is in <ph_2>"
     assert uncanonicalize(new_mr, ph2mr) == mr
     assert len(ph2mr) == 3
+
+def test_canonicalize_roundtrip():
+    # stress-test on the entire training set
+    filepath = 'data/conala-train.json'
+    for intent, snippet in load_intent_snippet(filepath):
+        pyast = ast.parse(snippet)
+        mr = ast_to_mr(pyast)
+        new_intent, new_mr, ph2mr = canonicalize(intent, mr)
+        restored_mr = uncanonicalize(new_mr, ph2mr)
+        assert new_mr == mr
