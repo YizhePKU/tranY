@@ -10,10 +10,13 @@ from asdl.utils import walk, tagged
 def load_intent_snippet(filepath, rewrite_intent="when-available"):
     """Load (rewritten_intent, snippet) pairs.
 
-    Parameters:
-        filepath: path to JSON data
-        rewrite_intent: whether to use rewritten_intent when available.
+    Arguments:
+        filepath -- path to JSON data
+        rewrite_intent -- whether to use rewritten_intent when available.
             Allowed values are 'never', 'when-available', 'skip-when-unavailable'
+
+    Returns:
+        pairs -- list of (intent, snippet) pairs
     """
     with open(filepath) as file:
         data = json.load(file)
@@ -44,8 +47,6 @@ def canonicalize(intent, mr):
 
     Returns (new_intent, new_mr, ph2mr) where ph2mr is a dictionary that maps placeholders
     to original MR representation in the snippet.
-
-    Raises SyntaxError if anything goes wrong.
     """
     # For each pair of quotes(single/double/backtick) in the intent, do the followings:
     #   1. generate a placeholder, such as <ph_0>
@@ -57,9 +58,9 @@ def canonicalize(intent, mr):
     #
     # This replacement strategy covers ~90% of quotes in the training set.
 
-    new_mr = deepcopy(mr) # make a copy so that we can modify mr in place
-    ph2mr = {}  # map placeholders to original MR
-    quote2ph = {}  # map quoted content to placeholder(to resolve duplicates)
+    new_mr = deepcopy(mr)  # make a copy so that we can modify mr in place
+    ph2mr = {}  # map placeholders to original parts of the MR
+    quote2ph = {}  # map quotes to placeholders to handle duplicated quotes
 
     def generate_placeholder(match):
         quote = match.group()[1:-1]
