@@ -2,6 +2,7 @@
 
 import json
 import re
+from copy import deepcopy
 
 from asdl.utils import walk, tagged
 
@@ -41,10 +42,8 @@ def canonicalize(intent, mr):
     must be copied into the generated snippet. Replacing them with placeholders makes it
     more likely for the tranX model to invoke the copy mechanism.
 
-    Returns (new_intent, mr, ph2mr) where ph2mr is a dictionary that maps placeholders
+    Returns (new_intent, new_mr, ph2mr) where ph2mr is a dictionary that maps placeholders
     to original MR representation in the snippet.
-
-    Note that mr is updated in place.
 
     Raises SyntaxError if anything goes wrong.
     """
@@ -58,6 +57,7 @@ def canonicalize(intent, mr):
     #
     # This replacement strategy covers ~90% of quotes in the training set.
 
+    new_mr = deepcopy(mr) # make a copy so that we can modify mr in place
     ph2mr = {}  # map placeholders to original MR
     quote2ph = {}  # map quoted content to placeholder(to resolve duplicates)
 
@@ -69,7 +69,7 @@ def canonicalize(intent, mr):
         # otherwise generate a new placeholder and proceed
         ph = f"<ph_{len(ph2mr)}>"
         quote2ph[quote] = ph
-        for node in walk(mr):
+        for node in walk(new_mr):
             # replace identifiers
             if tagged(node, "Name") and node["id"] == quote:
                 ph2mr[ph] = node["id"]
@@ -84,7 +84,7 @@ def canonicalize(intent, mr):
     intent = re.sub(r"`.*?`", generate_placeholder, intent)
     intent = re.sub(r'".*?"', generate_placeholder, intent)
     intent = re.sub(r"'.*?'", generate_placeholder, intent)
-    return intent, mr, ph2mr
+    return intent, new_mr, ph2mr
 
 
 def uncanonicalize(mr, ph2mr):
