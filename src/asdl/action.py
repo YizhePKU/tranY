@@ -1,9 +1,11 @@
 from collections import OrderedDict
+from functools import cache
 
 import asdl.parser
 from asdl.utils import walk
 
 
+@cache
 def extract_cardinality(grammar):
     """Extract cardinality for all fields in a given grammar.
 
@@ -44,14 +46,37 @@ def extract_cardinality(grammar):
 def mr_to_actions_dfs(mr, grammar):
     """Convert mr to an action sequence in depth-first order, as described in the tranX paper.
 
-    Returns a list of actions. An action can be one of:
-      - ("ApplyConstr", tag)
-      - ("Reduce",)
-      - ("GenToken", token)
-
     After each field is processed, a "Reduce" action is generated if:
-      - a field has cardinality "multiple"
-      - a field has cardinality "optional" and currently does not have a value
+        - a field has cardinality "multiple"
+        - a field has cardinality "optional" and currently does not have a value
+
+    Args:
+        mr (dict): source mr
+        grammar (asdl.parser.Module): reference grammar
+
+    Yields:
+        a sequence of actions, where each action can be one of:
+            - ("ApplyConstr", tag)
+            - ("Reduce",)
+            - ("GenToken", token)
     """
-    for node in walk(mr):
-        pass
+    cardinality = extract_cardinality(grammar)
+    if isinstance(mr, dict):
+        tag_name = mr["_tag"]
+        yield ("ApplyConstr", tag_name)
+        for field, card in cardinality[tag_name].items():
+            if card == "single":
+                yield from mr_to_actions_dfs(mr[field], grammar)
+            elif card == "multiple":
+                for item in mr[field]:
+                    yield from mr_to_actions_dfs(item, grammar)
+                    yield ("Reduce",)
+            elif card == "optional":
+                if mr[field] is None:
+                    yield ("Reduce",)
+                else:
+                    yield from mr_to_actions_dfs(mr[field], grammar)
+            else:
+                assert False
+    else:
+        yield ("GenToken", mr)
