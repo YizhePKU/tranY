@@ -2,7 +2,7 @@ import pytest
 import ast
 
 from asdl.convert import ast_to_mr
-from conala import canonicalize, load_intent_snippet, uncanonicalize
+from data.conala import canonicalize, load_intent_snippet, uncanonicalize
 
 
 def test_canonicalize():

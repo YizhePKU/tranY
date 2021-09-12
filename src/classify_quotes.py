@@ -1,7 +1,7 @@
 #!/usr/env/bin python3
 import re
 
-from conala import load_intent_snippet
+from data.conala import load_intent_snippet
 
 # extract all quote-snippet pairs
 quotes = []

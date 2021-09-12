@@ -4,7 +4,7 @@ import pytest
 from asdl.convert import ast_to_mr
 import asdl.parser
 from asdl.action import extract_cardinality, mr_to_actions_dfs, actions_to_mr_dfs
-from conala import load_intent_snippet
+from data.conala import load_intent_snippet
 
 
 @pytest.fixture
