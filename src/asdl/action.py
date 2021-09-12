@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import asdl.parser
 from asdl.utils import walk
 
@@ -9,13 +11,14 @@ def extract_cardinality(grammar):
         grammar (asdl.parser.Module): a top-level grammar instance, as returned by `asdl.parser.parse()`.
 
     Returns:
-        (dict[str,dict[str,str]]) a mapping of tag_name -> field_name -> cardinality
+        (dict[str,OrderedDict[str,str]]): a mapping of tag_name -> field_name -> cardinality
             where cardinality is one of 'single', 'multiple', or 'optional'.
+            Field names are listed in declaration order.
     """
     retval = {}
 
     def handle_constructor(constructor, tag_name):
-        retval[tag_name] = {}
+        retval[tag_name] = OrderedDict()
         for field in constructor.fields:
             field_name = field.name
             if field.seq:
