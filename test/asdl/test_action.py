@@ -4,6 +4,7 @@ import pytest
 from asdl.convert import ast_to_mr
 import asdl.parser
 from asdl.action import extract_cardinality, mr_to_actions_dfs, actions_to_mr_dfs
+from conala import load_intent_snippet
 
 
 @pytest.fixture
@@ -193,3 +194,13 @@ def test_actions_to_mr_dfs_list(grammar):
         ],
         "ctx": {"_tag": "Load"},
     }
+
+
+def test_actions_dfs_roundtrip(grammar):
+    filepath = "data/conala-train.json"
+    for intent, snippet in load_intent_snippet(filepath):
+        pyast = ast.parse(snippet)
+        mr = ast_to_mr(pyast)
+        actions = list(mr_to_actions_dfs(mr, grammar))
+        reconstructed_mr = actions_to_mr_dfs(actions, grammar)
+        assert mr == reconstructed_mr
