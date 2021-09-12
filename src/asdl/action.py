@@ -1,3 +1,9 @@
+"""Convert between MR and action sequences.
+
+Currently only DFS-based encoding is implemented(as described in the tranX paper),
+but other encodings are also possible.
+"""
+
 from collections import OrderedDict, deque
 from functools import cache
 
