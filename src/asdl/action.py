@@ -70,7 +70,7 @@ def mr_to_actions_dfs(mr, grammar):
             elif card == "multiple":
                 for item in mr[field]:
                     yield from mr_to_actions_dfs(item, grammar)
-                    yield ("Reduce",)
+                yield ("Reduce",)
             elif card == "optional":
                 if mr[field] is None:
                     yield ("Reduce",)

@@ -147,3 +147,49 @@ def test_actions_to_mr_dfs_assignment(grammar):
         },
         "type_comment": None,
     }
+
+
+def test_mr_to_actions_dfs_list(grammar):
+    mr = {
+        "_tag": "List",
+        "elts": [
+            {"_tag": "Constant", "value": 1, "kind": None},
+            {"_tag": "Constant", "value": 2, "kind": None},
+        ],
+        "ctx": {"_tag": "Load"},
+    }
+    actions = list(mr_to_actions_dfs(mr, grammar))
+    assert actions == [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 2),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]
+
+
+def test_actions_to_mr_dfs_list(grammar):
+    actions = [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 2),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]
+    mr = actions_to_mr_dfs(actions, grammar)
+    assert mr == {
+        "_tag": "List",
+        "elts": [
+            {"_tag": "Constant", "value": 1, "kind": None},
+            {"_tag": "Constant", "value": 2, "kind": None},
+        ],
+        "ctx": {"_tag": "Load"},
+    }
