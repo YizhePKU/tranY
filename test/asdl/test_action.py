@@ -3,7 +3,7 @@ import pytest
 
 from asdl.convert import ast_to_mr
 import asdl.parser
-from asdl.action import extract_cardinality, mr_to_actions_dfs
+from asdl.action import extract_cardinality, mr_to_actions_dfs, actions_to_mr_dfs
 
 
 @pytest.fixture
@@ -87,18 +87,63 @@ def test_mr_to_actions_dfs(grammar):
         ("ApplyConstr", "Attribute"),
         ("ApplyConstr", "Name"),
         ("GenToken", "panda"),
-        ("ApplyConstr", "Load"), # Name.ctx, not in paper
+        ("ApplyConstr", "Load"),  # Name.ctx, not in paper
         ("GenToken", "read_csv"),
-        ("ApplyConstr", "Load"), # Name.ctx, not in paper
-        ("ApplyConstr", "Constant"), # "Str" instead of "Constant" in paper
+        ("ApplyConstr", "Load"),  # Name.ctx, not in paper
+        ("ApplyConstr", "Constant"),  # "Str" instead of "Constant" in paper
         ("GenToken", "file.csv"),
         # ("GenToken", "</f>"), # in paper
-        ("Reduce",), # Constant.kind, not in paper
+        ("Reduce",),  # Constant.kind, not in paper
         ("Reduce",),
         ("ApplyConstr", "keyword"),
         ("GenToken", "nrows"),
-        ("ApplyConstr", "Constant"), # "Num" instead of "Constant" in paper
+        ("ApplyConstr", "Constant"),  # "Num" instead of "Constant" in paper
         ("GenToken", 100),
-        ("Reduce",), # Constant.kind, not in paper
+        ("Reduce",),  # Constant.kind, not in paper
         ("Reduce",),
     ]
+
+
+def test_actions_to_mr_dfs_variable(grammar):
+    actions = [
+        ("ApplyConstr", "Name"),
+        ("GenToken", "x"),
+        ("ApplyConstr", "Store"),
+    ]
+    mr = actions_to_mr_dfs(actions, grammar)
+    assert mr == {
+        "_tag": "Name",
+        "id": "x",
+        "ctx": {"_tag": "Store"},
+    }
+
+
+def test_actions_to_mr_dfs_assignment(grammar):
+    actions = [
+        ("ApplyConstr", "Assign"),
+        ("ApplyConstr", "Name"),
+        ("GenToken", "x"),
+        ("ApplyConstr", "Store"),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("Reduce",),
+    ]
+    mr = actions_to_mr_dfs(actions, grammar)
+    assert mr == {
+        "_tag": "Assign",
+        "targets": [
+            {
+                "_tag": "Name",
+                "id": "x",
+                "ctx": {"_tag": "Store"},
+            }
+        ],
+        "value": {
+            "_tag": "Constant",
+            "value": 1,
+            "kind": None,
+        },
+        "type_comment": None,
+    }

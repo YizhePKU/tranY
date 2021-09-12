@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from functools import cache
 
 import asdl.parser
@@ -80,3 +80,54 @@ def mr_to_actions_dfs(mr, grammar):
                 assert False
     else:
         yield ("GenToken", mr)
+
+
+def actions_to_mr_dfs(actions, grammar):
+    """Convert a depth-first action sequence to mr, as described in the tranX paper.
+
+    Args:
+        actions (list[tuple]): a sequence of actions, as returned by ``mr_to_actions_dfs``
+        grammar (asdl.parser.Module): reference grammar
+
+    Returns:
+        (dict): the reconstructed mr
+    """
+    cardinality = extract_cardinality(grammar)
+    actions = deque(actions)
+
+    def reconstruct_mr():
+        # consumes some items from the deque and reconstruct part of the mr
+        # returns the reconstructed mr
+        frontier = actions.popleft()
+        if frontier[0] == "ApplyConstr":
+            tag_name = frontier[1]
+            retval = dict(_tag=tag_name)
+            for field, card in cardinality[tag_name].items():
+                if card == "single":
+                    retval[field] = reconstruct_mr()
+                elif card == "multiple":
+                    retval[field] = []
+                    while True:
+                        if actions[0] == ("Reduce",):
+                            actions.popleft()
+                            break
+                        else:
+                            retval[field].append(reconstruct_mr())
+                elif card == "optional":
+                    if actions[0] == ("Reduce",):
+                        actions.popleft()
+                        retval[field] = None
+                    else:
+                        retval[field] = reconstruct_mr()
+                else:
+                    assert False
+            return retval
+        elif frontier[0] == "GenToken":
+            return frontier[1]
+        else:
+            assert False
+
+    retval = reconstruct_mr()
+    if actions:
+        raise Exception("Bad action sequence")
+    return retval
