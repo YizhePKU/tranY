@@ -67,7 +67,7 @@ max_action_length = max(len(actions) for _, actions in words_actions_pairs)
 # input_tensor: (max_sentence_length x batch_size)
 input_tensor = nn.utils.rnn.pad_sequence(
     [
-        torch.tensor([word2idx[word] for word in words])
+        torch.tensor([word2idx[word] for word in words], device=cfg.device)
         for words, _ in words_actions_pairs
     ]
 )
@@ -75,7 +75,7 @@ input_tensor = nn.utils.rnn.pad_sequence(
 # output_tensor: (max_action_length x batch_size)
 output_tensor = nn.utils.rnn.pad_sequence(
     [
-        torch.tensor([action2idx[action] for action in actions])
+        torch.tensor([action2idx[action] for action in actions], device=cfg.device)
         for _, actions in words_actions_pairs
     ]
 )

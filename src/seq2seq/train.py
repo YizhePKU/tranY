@@ -58,7 +58,7 @@ def train(
         decoder_logits = []
         decoder_hidden = encoder_hidden
         # last_action: (batch_size)
-        last_action_idx = torch.full((batch_size,), decoder_init_action)
+        last_action_idx = torch.full((batch_size,), decoder_init_action, device=decoder.device)
         while last_action_idx != EOA and len(decoder_logits) < max_action_length:
             # treat last_action_idx as an action sequence of length 1
             # logits: (batch_size x action_vocab_size)
