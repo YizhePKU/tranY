@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 
-from utils.events import events
+from utils.events import add_event
 
 
 def train(
@@ -39,7 +39,7 @@ def train(
     assert batch_size == output_tensor.shape[1]
 
     for i in range(n_epochs):
-        events.insert_one(
+        add_event(
             {
                 "event": "TrainingEpochStart",
                 "epoch": i,
@@ -62,7 +62,9 @@ def train(
         while last_action_idx != EOA and len(decoder_logits) < max_action_length:
             # treat last_action_idx as an action sequence of length 1
             # logits: (batch_size x action_vocab_size)
-            logits, decoder_hidden = decoder(last_action_idx.unsqueeze(0), decoder_hidden)
+            logits, decoder_hidden = decoder(
+                last_action_idx.unsqueeze(0), decoder_hidden
+            )
             decoder_logits.append(logits)
             # TODO: is it OK to sample with argmax?
             last_action_idx = torch.argmax(logits, dim=1)
@@ -83,7 +85,7 @@ def train(
         encoder_optimizer.step()
         decoder_optimizer.step()
 
-        events.insert_one(
+        add_event(
             {
                 "event": "TrainingEpochEnd",
                 "loss": loss.item(),
