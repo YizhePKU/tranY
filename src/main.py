@@ -96,7 +96,7 @@ train(
     decoder_optimizer=decoder_optimizer,
     decoder_init_action=decoder_init_input,
     EOA=EOA,
-    n_epochs=cfg.n_iters,
+    n_epochs=cfg.n_epochs,
     max_sentence_length=max_action_length,
     max_action_length=max_action_length,
 )
