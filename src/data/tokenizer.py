@@ -6,19 +6,27 @@ from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
 
 
-def train_tokenizer(text):
+def train_intent_tokenizer(intents):
+    """Train a tokenizer for intents.
+
+    Args:
+        intents (list[str]): intents to extract vocabulary from.
+
+    Returns:
+        (tokenizers.models.Model): a tokenizer.
+    """
     tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
     tokenizer.normalizer = normalizers.Sequence([NFD(), Lowercase(), StripAccents()])
     tokenizer.pre_tokenizer = Whitespace()
     tokenizer.post_processor = TemplateProcessing(
         single="[SOS] $A [EOS]",
         special_tokens=[
-            ("[SOS]", 1),
-            ("[EOS]", 2),
+            ("[SOS]", 2),
+            ("[EOS]", 3),
         ],
     )
-    trainer = BpeTrainer(special_tokens=["[UNK]", "[SOS]", "[EOS]", "[PAD]"])
-    tokenizer.train_from_iterator(text, trainer=trainer)
+    trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[SOS]", "[EOS]"])
+    tokenizer.train_from_iterator(intents, trainer=trainer)
     return tokenizer
 
 

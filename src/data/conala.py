@@ -1,41 +1,113 @@
-# load and preprocess CoNaLa dataset
+"""Load the CoNaLa dataset."""
 
+import ast
 import json
 import re
 from copy import deepcopy
+import torch
 
 from asdl.utils import walk, tagged
+from asdl.convert import ast_to_mr
+from asdl.action import mr_to_actions_dfs
+from data.tokenizer import train_intent_tokenizer, make_lookup_tables
+from utils.flatten import flatten
 
 
-def load_intent_snippet(filepath, rewrite_intent="when-available"):
+def load_intent_snippet(path):
+    return []
+
+
+class ConalaDataset(torch.utils.data.Dataset):
     """Load (rewritten_intent, snippet) pairs.
 
-    Arguments:
-        filepath -- path to JSON data
-        rewrite_intent -- whether to use rewritten_intent when available.
-            Allowed values are 'never', 'when-available', 'skip-when-unavailable'
+    The entire dataset is loaded into memory since it's tiny(~500KB).
 
-    Returns:
-        pairs -- list of (intent, snippet) pairs
+    Attributes:
+        intent_vocab_size (int): size of vocabulary for intents.
+        action_vocab_size (int): size of vocabulary for actions.
+        PAD, UNK, SOS, EOS (int): special tokens in the vocabulary.
     """
-    with open(filepath) as file:
-        data = json.load(file)
-    pairs = []
-    for sample in data:
-        intent = sample["intent"]
-        snippet = sample["snippet"]
-        if (
-            sample["rewritten_intent"] is None
-            and rewrite_intent == "skip-when-unavailable"
-        ):
-            continue
-        if (
-            sample["rewritten_intent"] is not None
-            and rewrite_intent == "when-available"
-        ):
-            intent = sample["rewritten_intent"]
-        pairs.append((intent, snippet))
-    return pairs
+
+    def __init__(self, filepath, grammar, rewrite_intent="when-available"):
+        """
+        Args:
+            filepath: JSON filepath of CoNaLa data.
+            grammar (asdl.parser.Module): Python ASDL grammar definition.
+            rewrite_intent: whether to use rewritten_intent when available.
+                Allowed values are 'never', 'when-available', 'skip-when-unavailable'
+        """
+        with open(filepath) as file:
+            data = json.load(file)
+
+        # extract intents and snippets
+        self.intents = []
+        self.snippets = []
+        for sample in data:
+            intent = sample["intent"]
+            snippet = sample["snippet"]
+            if (
+                sample["rewritten_intent"] is None
+                and rewrite_intent == "skip-when-unavailable"
+            ):
+                continue
+            if (
+                sample["rewritten_intent"] is not None
+                and rewrite_intent == "when-available"
+            ):
+                intent = sample["rewritten_intent"]
+            self.intents.append(intent)
+            self.snippets.append(snippet)
+
+        # convert snippet to mr
+        self.mrs = [ast_to_mr(ast.parse(snippet)) for snippet in self.snippets]
+
+        # canonicalize intent and mr
+        # prefix "c" stands for canonicalized
+        self.c_intents, self.c_mrs, self.ph2mrs = zip(
+            *(canonicalize(intent, mr) for intent, mr in zip(self.intents, self.mrs))
+        )
+
+        # convert mr to action sequences
+        self.action_seqs = [list(mr_to_actions_dfs(mr, grammar)) for mr in self.c_mrs]
+
+        # special tokens
+        # these constants are specified multiple times(not DRY!) but idk
+        self.PAD = 0
+        self.UNK = 1
+        self.SOS = 2
+        self.EOS = 3
+
+        # train an intent tokenizer
+        self.intent_tokenizer = train_intent_tokenizer(self.c_intents)
+
+        # make action loopup tables
+        self.id2action, self.action2id = make_lookup_tables(
+            flatten(self.action_seqs),
+            special_tokens=["[PAD]", "[UNK]", "[SOA]", "[EOA]"],
+        )
+
+    def __getitem__(self, index):
+        # prepare input_tensor
+        c_intent = self.c_intents[index]
+        input_tensor = torch.tensor(self.intent_tokenizer.encode(c_intent).ids)
+
+        # prepare output_tensor
+        actions = self.action_seqs[index]
+        actions = ["[SOA]"] + actions + ["[EOA]"]
+        output_tensor = torch.tensor([self.action2id[action] for action in actions])
+
+        return input_tensor, output_tensor
+
+    def __len__(self):
+        return len(self.intents)
+
+    @property
+    def intent_vocab_size(self):
+        return self.intent_tokenizer.get_vocab_size()
+
+    @property
+    def action_vocab_size(self):
+        return len(self.id2action)
 
 
 def canonicalize(intent, mr):
