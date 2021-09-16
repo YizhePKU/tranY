@@ -3,7 +3,13 @@ import pytest
 
 from asdl.convert import ast_to_mr
 import asdl.parser
-from asdl.action import extract_cardinality, mr_to_actions_dfs, actions_to_mr_dfs
+from asdl.action import (
+    extract_cardinality,
+    mr_to_actions_dfs,
+    actions_to_mr_dfs,
+    int2str,
+    str2int,
+)
 from data.conala import load_intent_snippet
 
 
@@ -204,3 +210,55 @@ def test_actions_dfs_roundtrip(grammar):
         actions = list(mr_to_actions_dfs(mr, grammar))
         reconstructed_mr = actions_to_mr_dfs(actions, grammar)
         assert mr == reconstructed_mr
+
+
+def test_int2str():
+    actions = [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 2),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]
+    new_actions = int2str(actions)
+    assert new_actions == [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", "<int>1"),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", "<int>2"),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]
+
+
+def test_str2int():
+    actions = [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", "<int>1"),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", "<int>2"),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]
+    new_actions = str2int(actions)
+    assert new_actions == [
+        ("ApplyConstr", "List"),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 2),
+        ("Reduce",),
+        ("Reduce",),
+        ("ApplyConstr", "Load"),
+    ]

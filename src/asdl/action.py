@@ -6,9 +6,9 @@ but other encodings are also possible.
 
 from collections import OrderedDict, deque
 from functools import cache
+from copy import deepcopy
 
 import asdl.parser
-from asdl.utils import walk
 
 
 @cache
@@ -137,3 +137,39 @@ def actions_to_mr_dfs(actions, grammar):
     if actions:
         raise Exception("Bad action sequence")
     return retval
+
+
+def int2str(actions):
+    """Replace integers with strings.
+
+    For example, ("GenToken", 1) will be replaced with ("GenToken", "<int>1").
+
+    Args:
+        actions (list[tuple]): actions to process.
+
+    Returns:
+        (list[tuple]): actions after replacement.
+    """
+    actions = deepcopy(actions)
+    for idx, action in enumerate(actions):
+        if action[0] == "GenToken" and isinstance(action[1], int):
+            actions[idx] = ("GenToken", f"<int>{action[1]}")
+    return actions
+
+
+def str2int(actions):
+    """Restore strings back to integers.
+
+    For example, ("GenToken", "<int>1") will be replaced with ("GenToken", 1).
+
+    Args:
+        actions (list[tuple]): actions to process.
+
+    Returns:
+        (list[tuple]): actions after replacement.
+    """
+    actions = deepcopy(actions)
+    for idx, action in enumerate(actions):
+        if action[0] == "GenToken" and action[1].startswith("<int>"):
+            actions[idx] = ("GenToken", int(action[1][5:]))
+    return actions
