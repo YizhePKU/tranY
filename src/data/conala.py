@@ -5,7 +5,9 @@ import json
 import re
 from copy import deepcopy
 import torch
+import torch.nn.functional as F
 
+import cfg
 from asdl.utils import walk, tagged
 from asdl.convert import ast_to_mr
 from asdl.action import mr_to_actions_dfs
@@ -18,23 +20,25 @@ def load_intent_snippet(path):
 
 
 class ConalaDataset(torch.utils.data.Dataset):
-    """Load (rewritten_intent, snippet) pairs.
+    """Load the CoNaLa dataset.
 
     The entire dataset is loaded into memory since it's tiny(~500KB).
 
-    Attributes:
-        intent_vocab_size (int): size of vocabulary for intents.
-        action_vocab_size (int): size of vocabulary for actions.
-        PAD, UNK, SOS, EOS (int): special tokens in the vocabulary.
+    Outputs:
+        sentence (*): tensor of input words, including SOS and EOS.
+        label (cfg.max_action_len): tensor of output actions, including SOA and EOA.
     """
 
-    def __init__(self, filepath, grammar, rewrite_intent="when-available"):
+    def __init__(
+        self, filepath, grammar, rewrite_intent="when-available", special_tokens=[]
+    ):
         """
         Args:
             filepath: JSON filepath of CoNaLa data.
             grammar (asdl.parser.Module): Python ASDL grammar definition.
             rewrite_intent: whether to use rewritten_intent when available.
                 Allowed values are 'never', 'when-available', 'skip-when-unavailable'
+            special_tokens (list[str]): special tokens to insert into vocabularies.
         """
         with open(filepath) as file:
             data = json.load(file)
@@ -70,44 +74,33 @@ class ConalaDataset(torch.utils.data.Dataset):
         # convert mr to action sequences
         self.action_seqs = [list(mr_to_actions_dfs(mr, grammar)) for mr in self.c_mrs]
 
-        # special tokens
-        # these constants are specified multiple times(not DRY!) but idk
-        self.PAD = 0
-        self.UNK = 1
-        self.SOS = 2
-        self.EOS = 3
-
         # train an intent tokenizer
-        self.intent_tokenizer = train_intent_tokenizer(self.c_intents)
+        self.intent_tokenizer = train_intent_tokenizer(
+            self.c_intents, special_tokens=special_tokens
+        )
 
         # make action loopup tables
         self.id2action, self.action2id = make_lookup_tables(
             flatten(self.action_seqs),
-            special_tokens=["[PAD]", "[UNK]", "[SOA]", "[EOA]"],
+            special_tokens=special_tokens,
         )
 
+        self.word_vocab_size = self.intent_tokenizer.get_vocab_size()
+        self.action_vocab_size = len(self.id2action)
+
     def __getitem__(self, index):
-        # prepare input_tensor
         c_intent = self.c_intents[index]
-        input_tensor = torch.tensor(self.intent_tokenizer.encode(c_intent).ids)
+        sentence = torch.tensor(self.intent_tokenizer.encode(c_intent).ids)
 
-        # prepare output_tensor
-        actions = self.action_seqs[index]
-        actions = ["[SOA]"] + actions + ["[EOA]"]
-        output_tensor = torch.tensor([self.action2id[action] for action in actions])
-
-        return input_tensor, output_tensor
+        actions = ["[SOA]"] + self.action_seqs[index] + ["[EOA]"]
+        label = torch.tensor(
+            [self.action2id[action] for action in actions], dtype=torch.long
+        )
+        label = F.pad(label, (0, cfg.max_action_len - len(actions)))
+        return sentence, label
 
     def __len__(self):
         return len(self.intents)
-
-    @property
-    def intent_vocab_size(self):
-        return self.intent_tokenizer.get_vocab_size()
-
-    @property
-    def action_vocab_size(self):
-        return len(self.id2action)
 
 
 def canonicalize(intent, mr):

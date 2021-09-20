@@ -17,6 +17,11 @@ db = client.tranY
 events = db.events
 
 
-def add_event(document):
-    document["timestamp"] = datetime.now()
-    events.insert_one(document)
+def add_event(event, data={}):
+    events.insert_one(
+        data
+        | {
+            "_event": event,
+            "_timestamp": datetime.now(),
+        }
+    )

@@ -3,100 +3,91 @@ import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from asdl.action import mr_to_actions_dfs
 from asdl.convert import ast_to_mr
 
 import cfg
 import asdl
-from data.conala import canonicalize, load_intent_snippet
-from data.tokenize import make_lookup_tables, tokenize
+from data.conala import ConalaDataset
 from seq2seq.encoder import EncoderLSTM
 from seq2seq.decoder import DecoderLSTM
-from seq2seq.train import train
-
-PAD = "<PAD>"  # padding
-SOS = "<SOS>"  # start-of-sentence
-EOS = "<EOS>"  # end-of-sentence
-SOA = "<SOA>"  # start-of-actions
-EOA = "<EOA>"  # end-of-actions
+from seq2seq.model import Seq2Seq
+from utils.events import add_event
 
 random.seed(47)
 torch.manual_seed(47)
 
+special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
+
 # load Python ASDL grammar
 grammar = asdl.parser.parse("src/asdl/Python.asdl")
 
-# load CoNaLa intent-snippet pairs
-intent_snippet = load_intent_snippet("data/conala-dev.json")
+# load CoNaLa intent-snippet pairs and preprocess
+train_ds = ConalaDataset(
+    "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
+)
+dev_ds = ConalaDataset(
+    "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
+)
 
-# convert intent-snippet into canonicalized intent-mr-ph2mr
-intent_mr_ph2mr_trippets = []
-for intent, snippet in intent_snippet:
-    pyast = ast.parse(snippet)
-    mr = ast_to_mr(pyast)
-    intent_mr_ph2mr_trippets.append(canonicalize(intent, mr))
+encoder = EncoderLSTM(vocab_size=train_ds.word_vocab_size, **cfg.EncoderLSTM)
+decoder = DecoderLSTM(vocab_size=train_ds.action_vocab_size, **cfg.DecoderLSTM)
+model = Seq2Seq(encoder, decoder, special_tokens=special_tokens, device=cfg.device)
+optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
 
-# convert intent to words, mr to actions
-words_actions_pairs = [
-    (
-        [SOS] + tokenize(intent) + [EOS],
-        [SOA] + list(mr_to_actions_dfs(mr, grammar)) + [EOA],
+
+def load(ds):
+    def collate_fn(data):
+        return (
+            torch.nn.utils.rnn.pad_sequence([input for input, label in data]),
+            torch.nn.utils.rnn.pad_sequence([label for input, label in data]),
+        )
+
+    return torch.utils.data.DataLoader(
+        ds,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        pin_memory=True,
+        collate_fn=collate_fn,
     )
-    for intent, mr, _ in intent_mr_ph2mr_trippets
-]
 
-# make vocabuary lookup table
-idx2word, word2idx = make_lookup_tables(
-    [word for words, _ in words_actions_pairs for word in words],
-    special=[PAD, SOS, EOS],
-)
-word_vocab_size = len(idx2word)
 
-# make action lookup table
-idx2action, action2idx = make_lookup_tables(
-    [action for _, actions in words_actions_pairs for action in actions],
-    special=[PAD, SOA, EOA],
-)
-action_vocab_size = len(idx2action)
+def calculate_loss(logits, label):
+    # flatten logits (max_action_len, batch_size, vocab_size) to (*, vocab_size)
+    # flatten label (max_action_len, batch_size) to (*)
+    return F.cross_entropy(logits.reshape(-1, logits.shape[-1]), label.reshape(-1))
 
-# prepare training data
-# TODO: trim tails for max_sentence_length and max_action_length
-max_sentence_length = max(len(words) for words, _ in words_actions_pairs)
-max_action_length = max(len(actions) for _, actions in words_actions_pairs)
 
-# input_tensor: (max_sentence_length x batch_size)
-input_tensor = nn.utils.rnn.pad_sequence(
-    [
-        torch.tensor([word2idx[word] for word in words], device=cfg.device)
-        for words, _ in words_actions_pairs
-    ]
-)
+def train(model, optimizer, batch):
+    model.train()
+    optimizer.zero_grad()
+    input, label = batch
+    logits, actions = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
+    loss = calculate_loss(logits, label.to(cfg.device))
+    loss.backward()
+    optimizer.step()
 
-# output_tensor: (max_action_length x batch_size)
-output_tensor = nn.utils.rnn.pad_sequence(
-    [
-        torch.tensor([action2idx[action] for action in actions], device=cfg.device)
-        for _, actions in words_actions_pairs
-    ]
-)
 
-encoder = EncoderLSTM(vocab_size=word_vocab_size, **cfg.EncoderLSTM)
-decoder = DecoderLSTM(vocab_size=action_vocab_size, **cfg.DecoderLSTM)
-encoder_optimizer = optim.Adam(encoder.parameters(), lr=cfg.learning_rate)
-decoder_optimizer = optim.Adam(decoder.parameters(), lr=cfg.learning_rate)
+def evaluate(model, ds):
+    model.eval()
+    with torch.no_grad():
+        loss = 0
+        for batch in load(ds):
+            input, label = batch
+            logits, actions = model(
+                input.to(cfg.device), max_action_len=cfg.max_action_len
+            )
+            loss += calculate_loss(logits, label.to(cfg.device)).item()
+    return loss
 
-decoder_init_input = action2idx[SOA]
+add_event("EnterMainLoop")
+for epoch in range(cfg.n_epochs):
+    add_event("EpochStart", {"epoch": epoch})
+    for batch in load(train_ds):
+        train(model, optimizer, batch)
+    add_event("EpochEnd", {"epoch": epoch})
 
-train(
-    encoder=encoder,
-    decoder=decoder,
-    input_tensor=input_tensor,
-    output_tensor=output_tensor,
-    encoder_optimizer=encoder_optimizer,
-    decoder_optimizer=decoder_optimizer,
-    decoder_init_action=decoder_init_input,
-    EOA=EOA,
-    n_epochs=cfg.n_epochs,
-    max_sentence_length=max_action_length,
-    max_action_length=max_action_length,
-)
+    train_loss = evaluate(model, train_ds)
+    dev_loss = evaluate(model, dev_ds)
+    add_event("evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})

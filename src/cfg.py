@@ -1,7 +1,7 @@
 import torch
 
 # cuda
-device = torch.device("cpu")
+device = torch.device("cuda")
 
 # seq2seq
 EncoderLSTM = {
@@ -16,6 +16,7 @@ DecoderLSTM = {
 }
 
 # training
-n_epochs = 1000
+n_epochs = 40
 learning_rate = 1e-3
-max_action_length = 100
+max_action_len = 200
+batch_size = 256

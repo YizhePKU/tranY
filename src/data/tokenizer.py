@@ -6,7 +6,7 @@ from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
 
 
-def train_intent_tokenizer(intents):
+def train_intent_tokenizer(intents, special_tokens=[]):
     """Train a tokenizer for intents.
 
     Args:
@@ -25,7 +25,7 @@ def train_intent_tokenizer(intents):
             ("[EOS]", 3),
         ],
     )
-    trainer = BpeTrainer(special_tokens=["[PAD]", "[UNK]", "[SOS]", "[EOS]"])
+    trainer = BpeTrainer(special_tokens=special_tokens)
     tokenizer.train_from_iterator(intents, trainer=trainer)
     return tokenizer
 
