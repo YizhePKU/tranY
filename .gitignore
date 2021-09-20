@@ -14,3 +14,9 @@ __pycache__/
 
 # editors
 /.vscode/
+
+# clojure
+.calva/
+.clj-kondo/
+.cpcache/
+.lsp/
