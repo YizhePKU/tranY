@@ -4,13 +4,13 @@
 
 **Attention: Python 3.9 (or later) is required.**
 
-1. Clone the repository:
+1. Clone the repository. The CoNaLa dataset is included in the repo(~50MB) so this may take several minutes.
 
 ```bash
 git clone git@github.com:YizhePKU/tranY.git
 ```
 
-2. Install dependencies:
+2. Install dependencies.
 
 ```bash
 python3 -m pip install -r requirements.txt
