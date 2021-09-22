@@ -33,3 +33,16 @@ make split-train-dev
 ```bash
 pytest
 ```
+
+6. Train the model.
+
+```
+python3 src/main.py
+```
+
+## Todos
+
+[ ] add attention to the model
+[ ] add parent feeding to the model
+[ ] save checkpoints of trained model
+[ ] evaluate using BLEU
