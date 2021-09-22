@@ -1,8 +1,9 @@
 import ast
 import pytest
 
+from data.conala import ConalaDataset
 from asdl.convert import ast_to_mr
-import asdl.parser
+from asdl.parser import parse as parse_asdl
 from asdl.action import (
     extract_cardinality,
     mr_to_actions_dfs,
@@ -11,9 +12,10 @@ from asdl.action import (
     str2int,
 )
 
+
 @pytest.fixture
 def grammar():
-    return asdl.parser.parse("src/asdl/Python.asdl")
+    return parse_asdl("src/asdl/Python.asdl")
 
 
 def test_cardinality(grammar):
@@ -200,10 +202,9 @@ def test_actions_to_mr_dfs_list(grammar):
     }
 
 
-@pytest.mark.skip(reason='load_intent_snippet() is removed')
 def test_actions_dfs_roundtrip(grammar):
-    filepath = "data/conala-train.json"
-    for intent, snippet in load_intent_snippet(filepath):
+    ds = ConalaDataset("data/conala-train.json", grammar=grammar)
+    for intent, snippet in zip(ds.intents, ds.snippets):
         pyast = ast.parse(snippet)
         mr = ast_to_mr(pyast)
         actions = list(mr_to_actions_dfs(mr, grammar))
