@@ -7,7 +7,7 @@
 1. Clone the repository:
 
 ```bash
-git@github.com:YizhePKU/tranY.git
+git clone git@github.com:YizhePKU/tranY.git
 ```
 
 2. Install dependencies:
