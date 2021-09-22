@@ -13,7 +13,6 @@ from data.conala import ConalaDataset
 from seq2seq.encoder import EncoderLSTM
 from seq2seq.decoder import DecoderLSTM
 from seq2seq.model import Seq2Seq
-from utils.events import add_event
 
 random.seed(47)
 torch.manual_seed(47)
@@ -81,13 +80,12 @@ def evaluate(model, ds):
             loss += calculate_loss(logits, label.to(cfg.device)).item()
     return loss
 
-add_event("EnterMainLoop")
 for epoch in range(cfg.n_epochs):
-    add_event("EpochStart", {"epoch": epoch})
+    print("EpochStart", {"epoch": epoch})
     for batch in load(train_ds):
         train(model, optimizer, batch)
-    add_event("EpochEnd", {"epoch": epoch})
+    print("EpochEnd", {"epoch": epoch})
 
     train_loss = evaluate(model, train_ds)
     dev_loss = evaluate(model, dev_ds)
-    add_event("evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
+    print("evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
