@@ -1,14 +1,11 @@
-import ast
 import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from asdl.action import mr_to_actions_dfs
-from asdl.convert import ast_to_mr
 
 import cfg
-import asdl
+from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
 from seq2seq.encoder import EncoderLSTM
 from seq2seq.decoder import DecoderLSTM
@@ -20,9 +17,9 @@ torch.manual_seed(47)
 special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
 
 # load Python ASDL grammar
-grammar = asdl.parser.parse("src/asdl/Python.asdl")
+grammar = parse_asdl("src/asdl/Python.asdl")
 
-# load CoNaLa intent-snippet pairs and preprocess
+# load CoNaLa intent-snippet pairs and map them to tensors
 train_ds = ConalaDataset(
     "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
 )
@@ -30,6 +27,7 @@ dev_ds = ConalaDataset(
     "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
 )
 
+# initialize the model and optimizer
 encoder = EncoderLSTM(vocab_size=train_ds.word_vocab_size, **cfg.EncoderLSTM)
 decoder = DecoderLSTM(vocab_size=train_ds.action_vocab_size, **cfg.DecoderLSTM)
 model = Seq2Seq(encoder, decoder, special_tokens=special_tokens, device=cfg.device)
@@ -80,6 +78,7 @@ def evaluate(model, ds):
             )
             loss += calculate_loss(logits, label.to(cfg.device)).item()
     return loss
+
 
 for epoch in range(cfg.n_epochs):
     print("EpochStart", {"epoch": epoch})
