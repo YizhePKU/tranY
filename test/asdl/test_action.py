@@ -10,8 +10,6 @@ from asdl.action import (
     int2str,
     str2int,
 )
-from data.conala import load_intent_snippet
-
 
 @pytest.fixture
 def grammar():
@@ -202,6 +200,7 @@ def test_actions_to_mr_dfs_list(grammar):
     }
 
 
+@pytest.mark.skip(reason='load_intent_snippet() is removed')
 def test_actions_dfs_roundtrip(grammar):
     filepath = "data/conala-train.json"
     for intent, snippet in load_intent_snippet(filepath):

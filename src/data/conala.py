@@ -15,8 +15,6 @@ from data.tokenizer import train_intent_tokenizer, make_lookup_tables
 from utils.flatten import flatten
 
 
-def load_intent_snippet(path):
-    return []
 
 
 class ConalaDataset(torch.utils.data.Dataset):
