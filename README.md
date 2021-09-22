@@ -46,3 +46,4 @@ python3 src/main.py
 - [ ] add parent feeding to the model
 - [ ] save checkpoints of trained model
 - [ ] evaluate using BLEU
+- [ ] add Transformer as an alternative to LSTM
