@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from pathlib import Path
 
 import cfg
 from asdl.parser import parse as parse_asdl
@@ -88,3 +89,15 @@ for epoch in range(cfg.n_epochs):
     train_loss = evaluate(model, train_ds)
     dev_loss = evaluate(model, dev_ds)
     print("Evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
+
+# save after training
+saved_data = {
+    "model_state_dict": model.state_dict(),
+    "optimizer_state_dict": optimizer.state_dict(),
+    "train_loss": train_loss,
+    "dev_loss": dev_loss,
+}
+path = Path("models/model.pt")
+path.parent.mkdir(exist_ok=True)
+torch.save(saved_data, path)
+print("SaveModel", saved_data)
