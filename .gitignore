@@ -1,22 +1,10 @@
-# raw and processed data, model weights, logs, etc.
 /data/
 /models/
 
-# machine-specific environment settings
-/.env
-
-# Python cache
+# Python
 __pycache__/
 .pytest_cache/
-
-# virtualenv
 /venv/
 
 # editors
 /.vscode/
-
-# clojure
-.calva/
-.clj-kondo/
-.cpcache/
-.lsp/
