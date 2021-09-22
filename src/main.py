@@ -58,14 +58,15 @@ def calculate_loss(logits, label):
     return F.cross_entropy(logits.reshape(-1, logits.shape[-1]), label.reshape(-1))
 
 
-def train(model, optimizer, batch):
+def train(model, ds, optimizer):
     model.train()
-    optimizer.zero_grad()
-    input, label = batch
-    logits, actions = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
-    loss = calculate_loss(logits, label.to(cfg.device))
-    loss.backward()
-    optimizer.step()
+    for batch in load(ds):
+        optimizer.zero_grad()
+        input, label = batch
+        logits, actions = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
+        loss = calculate_loss(logits, label.to(cfg.device))
+        loss.backward()
+        optimizer.step()
 
 
 def evaluate(model, ds):
@@ -82,10 +83,9 @@ def evaluate(model, ds):
 
 for epoch in range(cfg.n_epochs):
     print("EpochStart", {"epoch": epoch})
-    for batch in load(train_ds):
-        train(model, optimizer, batch)
+    train(model, train_ds, optimizer)
     print("EpochEnd", {"epoch": epoch})
 
     train_loss = evaluate(model, train_ds)
     dev_loss = evaluate(model, dev_ds)
-    print("evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
+    print("Evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
