@@ -2,6 +2,8 @@
 
 ## Development Setup
 
+**Attention: Python 3.9 (or later) is required.**
+
 Install dependencies:
 
 ```bash
