@@ -42,8 +42,8 @@ python3 src/main.py
 
 ## Todos
 
+- [x] save checkpoints of trained model
 - [ ] add attention to the model
 - [ ] add parent feeding to the model
-- [ ] save checkpoints of trained model
 - [ ] evaluate using BLEU
 - [ ] add Transformer as an alternative to LSTM
