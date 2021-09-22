@@ -1,3 +1,5 @@
+-- Copied from https://github.com/python/cpython/blob/main/Parser/Python.asdl
+
 -- ASDL's 4 builtin types are:
 -- identifier, int, string, constant
 

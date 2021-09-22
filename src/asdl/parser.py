@@ -1,3 +1,5 @@
+# Copied from https://github.com/python/cpython/blob/main/Parser/asdl.py.
+
 #-------------------------------------------------------------------------------
 # Parser for ASDL [1] definition files. Reads in an ASDL description and parses
 # it into an AST that describes it.
