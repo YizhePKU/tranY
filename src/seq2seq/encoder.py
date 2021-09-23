@@ -17,14 +17,16 @@ class EncoderLSTM(nn.Module):
         """Feed input sentences to the encoder.
 
         Args:
-            input (seq_length x batch_size): indices of the input sentence.
+            input (PackedSequence): ids of the input sentence.
             hidden: previous hidden state. defaults to zeros if not provided or None.
 
         Returns:
-            output (seq_length x batch_size x hidden_size): output of the encoder.
+            output (PackedSequence): output of the encoder.
             hidden: new hidden state.
         """
-        # embedded: (seq_length x batch_size x embedding_dim)
-        embedded = self.embedding(input)
+        # apply embedding pointwise to the packed sequence
+        embedded = torch.nn.utils.rnn.PackedSequence(
+            self.embedding(input.data), input.batch_sizes, input.sorted_indices
+        )
         output, hidden = self.lstm(embedded, hidden)
         return output, hidden
