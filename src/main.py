@@ -1,56 +1,33 @@
 import random
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from pathlib import Path
 
 import cfg
+from utils.tensorboard import writer, profiler
+from utils.checkpoints import Checkpoints
 from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
 from seq2seq.encoder import EncoderLSTM
 from seq2seq.decoder import DecoderLSTM
 from seq2seq.model import Seq2Seq
 
-random.seed(47)
-torch.manual_seed(47)
 
-special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
-
-# load Python ASDL grammar
-grammar = parse_asdl("src/asdl/Python.asdl")
-
-# load CoNaLa intent-snippet pairs and map them to tensors
-train_ds = ConalaDataset(
-    "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
-)
-dev_ds = ConalaDataset(
-    "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
-)
-
-# initialize the model and optimizer
-encoder = EncoderLSTM(vocab_size=train_ds.word_vocab_size, **cfg.EncoderLSTM)
-decoder = DecoderLSTM(vocab_size=train_ds.action_vocab_size, **cfg.DecoderLSTM)
-model = Seq2Seq(encoder, decoder, special_tokens=special_tokens, device=cfg.device)
-optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
-
-
-def load(ds, batch_size=cfg.batch_size):
+def load(ds):
     def collate_fn(data):
         return (
             torch.nn.utils.rnn.pack_sequence(
                 [input for input, _ in data], enforce_sorted=False
-            ),
+            ).to(cfg.device),
             torch.nn.utils.rnn.pack_sequence(
                 [label for _, label in data], enforce_sorted=False
-            ),
+            ).to(cfg.device),
         )
 
     return torch.utils.data.DataLoader(
         ds,
-        batch_size=batch_size,
-        shuffle=False,
-        pin_memory=True,
+        batch_size=cfg.batch_size,
+        shuffle=True,
         collate_fn=collate_fn,
     )
 
@@ -74,44 +51,88 @@ def train_epoch(model, ds, optimizer):
     for batch in load(ds):
         optimizer.zero_grad()
         input, label = batch
-        logits, actions = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
+        logits, _ = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
         loss = calculate_loss(logits, label.to(cfg.device))
         loss.backward()
         optimizer.step()
 
 
 def evaluate(model, ds):
+    """Evaluate model on a dataset.
+
+    Args:
+        model (seq2seq.model.Seq2Seq): seq2seq model to evaluate.
+        ds (Dataset): dataset to evaluate on.
+
+    Returns:
+        loss (float): average loss per sample.
+        errors (float): average incorrect actions per sample.
+    """
     model.eval()
     with torch.no_grad():
         loss = 0
-        for batch in load(ds):
-            input, label = batch
-            logits, actions = model(
-                input.to(cfg.device), max_action_len=cfg.max_action_len
-            )
-            assert torch.all(torch.argmax(logits, dim=2) == actions)
+        errors = 0
+        for input, label in load(ds):
+            logits, _ = model(input, max_action_len=cfg.max_action_len)
             loss += calculate_loss(logits, label.to(cfg.device)).item()
-    return loss
+            errors += calculate_errors(logits, label).item()
+    return loss / len(ds), errors / len(ds)
+
+
+def main():
+    random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+
+    special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
+
+    # load Python ASDL grammar
+    grammar = parse_asdl("src/asdl/Python.asdl")
+
+    # load CoNaLa intent-snippet pairs and map them to tensors
+    train_ds = ConalaDataset(
+        "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
+    )
+    dev_ds = ConalaDataset(
+        "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
+    )
+
+    # initialize the model and optimizer
+    encoder = EncoderLSTM(vocab_size=train_ds.word_vocab_size, **cfg.EncoderLSTM)
+    decoder = DecoderLSTM(vocab_size=train_ds.action_vocab_size, **cfg.DecoderLSTM)
+    model = Seq2Seq(encoder, decoder, special_tokens=special_tokens, device=cfg.device)
+    optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
+
+    # load checkpoints
+    checkpoints = Checkpoints(cfg.checkpoint_dir)
+    if pt := checkpoints.latest():
+        state = torch.load(pt)
+        model.load_state_dict(state["model_state_dict"])
+        optimizer.load_state_dict(state["optimizer_state_dict"])
+        epoch = state["epoch"]
+        print(f"Loaded checkpoint from epoch {epoch}")
+    else:
+        epoch = 0
+
+    # start training loop
+    while True:
+        epoch += 1
+        print(f"Epoch {epoch}")
+        train_epoch(model, train_ds, optimizer)
+
+        train_loss, train_errors = evaluate(model, train_ds)
+        dev_loss, dev_errors = evaluate(model, dev_ds)
+        writer.add_scalar("Train/loss", train_loss, epoch)
+        writer.add_scalar("Train/errors", train_errors, epoch)
+        writer.add_scalar("Dev/loss", dev_loss, epoch)
+        writer.add_scalar("Dev/errors", dev_errors, epoch)
+
+        state = {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+        }
+        torch.save(state, checkpoints.new())
 
 
 if __name__ == "__main__":
-    for epoch in range(cfg.n_epochs):
-        print("EpochStart", {"epoch": epoch})
-        train_epoch(model, train_ds, optimizer)
-        print("EpochEnd", {"epoch": epoch})
-
-        train_loss = evaluate(model, train_ds)
-        dev_loss = evaluate(model, dev_ds)
-        print("Evaluate", {"train_loss": train_loss, "dev_loss": dev_loss})
-
-    # save after training
-    saved_data = {
-        "model_state_dict": model.state_dict(),
-        "optimizer_state_dict": optimizer.state_dict(),
-        "train_loss": train_loss,
-        "dev_loss": dev_loss,
-    }
-    path = Path("models/model.pt")
-    path.parent.mkdir(exist_ok=True)
-    torch.save(saved_data, path)
-    print("SaveModel", saved_data)
+    main()
