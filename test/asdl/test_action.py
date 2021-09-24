@@ -1,14 +1,15 @@
 import ast
-import pytest
 
+import pytest
 from data.conala import ConalaDataset
+
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
 from asdl.recipe import (
     extract_cardinality,
+    int2str,
     mr_to_recipe_dfs,
     recipe_to_mr_dfs,
-    int2str,
     str2int,
 )
 

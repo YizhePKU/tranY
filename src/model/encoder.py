@@ -13,7 +13,9 @@ class EncoderLSTM(nn.Module):
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim, device=device)
         self.dropout = nn.Dropout(dropout_p)
-        self.lstm = nn.LSTM(embedding_dim, hidden_size, bidirectional=True, device=device)
+        self.lstm = nn.LSTM(
+            embedding_dim, hidden_size, bidirectional=True, device=device
+        )
 
     def forward(self, input):
         """Feed words to the encoder.

@@ -1,6 +1,8 @@
 import sys
-import torch
 from pathlib import Path
+
+import torch
+
 from utils.checkpoints import Checkpoints
 
 model_name = sys.argv[1] if len(sys.argv) >= 2 else "default"

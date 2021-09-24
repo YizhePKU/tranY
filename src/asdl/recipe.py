@@ -14,8 +14,8 @@ but other encodings are also possible.
 """
 
 from collections import OrderedDict, deque
-from functools import cache
 from copy import deepcopy
+from functools import cache
 
 import asdl.parser
 

@@ -1,9 +1,10 @@
-import pytest
 import ast
 
-from data.conala import ConalaDataset, canonicalize, uncanonicalize
+import pytest
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
+
+from data.conala import ConalaDataset, canonicalize, uncanonicalize
 
 
 @pytest.fixture

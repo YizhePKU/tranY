@@ -1,6 +1,6 @@
 from tokenizers import Tokenizer, normalizers
 from tokenizers.models import BPE
-from tokenizers.normalizers import Lowercase, NFD, StripAccents
+from tokenizers.normalizers import NFD, Lowercase, StripAccents
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import BpeTrainer
