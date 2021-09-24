@@ -1,3 +1,8 @@
+"""Main training script.
+
+usage: python3 main.py MODEL_NAME
+"""
+
 import random
 import torch
 import torch.optim as optim
@@ -5,7 +10,6 @@ import torch.nn.functional as F
 
 import cfg
 from utils.tensorboard import writer, profiler
-from utils.checkpoints import Checkpoints
 from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
 from model.encoder import EncoderLSTM
@@ -62,12 +66,13 @@ def train_epoch(model, ds, optimizer):
         optimizer.step()
 
 
-def evaluate(model, ds):
+def evaluate(model, ds, teacher_forcing_p=0):
     """Evaluate model on a dataset.
 
     Args:
         model (seq2seq.model.Seq2Seq): seq2seq model to evaluate.
         ds (Dataset): dataset to evaluate on.
+        teacher_forcing_p (float): how often to use teacher forcing.
 
     Returns:
         loss (float): average loss per sample.
@@ -82,7 +87,7 @@ def evaluate(model, ds):
                 input,
                 label,
                 max_action_len=cfg.max_action_len,
-                teacher_forcing_p=0,
+                teacher_forcing_p=teacher_forcing_p,
             )
             loss += calculate_loss(logits, label).item()
             errors += calculate_errors(logits, label).item()
@@ -145,9 +150,12 @@ def main():
         train_epoch(model, train_ds, optimizer)
 
         train_loss, train_errors = evaluate(model, train_ds)
-        dev_loss, dev_errors = evaluate(model, dev_ds)
         writer.add_scalar("Train/loss", train_loss, epoch)
         writer.add_scalar("Train/errors", train_errors, epoch)
+        train_tf_loss, train_tf_errors = evaluate(model, train_ds, teacher_forcing_p=1)
+        writer.add_scalar("Train/loss(teacher_forcing_p=1)", train_tf_loss, epoch)
+        writer.add_scalar("Train/errors(teacher_forcing_p=1)", train_tf_errors, epoch)
+        dev_loss, dev_errors = evaluate(model, dev_ds)
         writer.add_scalar("Dev/loss", dev_loss, epoch)
         writer.add_scalar("Dev/errors", dev_errors, epoch)
 

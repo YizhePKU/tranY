@@ -2,10 +2,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import cfg
-
 
 class Seq2Seq(nn.Module):
+    """A standard seq2seq model.
+
+    Input is fed to the LSTM encoder to get its final cell state. That cell state
+    is fed to a linear layer to initialize the cell state of the LSTM decoder.
+    Output is then sampled from decoder and selected with argmax.
+    """
+
     def __init__(self, encoder, decoder, special_tokens, device):
         super(Seq2Seq, self).__init__()
         self.encoder = encoder
@@ -18,15 +23,13 @@ class Seq2Seq(nn.Module):
         )
 
     def forward(self, input, label, max_action_len, teacher_forcing_p):
-        """Feed sentences to the seq2seq model.
-
-        Decoder outputs are sampled with argmax.
+        """Feed words to the seq2seq model.
 
         Args:
             input (PackedSequence): ids of the input words.
             label (PackedSequence): ids of expected output actions, used for teacher forcing.
             max_action_len (int): number of actions the model is allowed to generate.
-            teacher_forcing_p (float): probability to use teacher forcing at each time step.
+            teacher_forcing_p (float): how often to use teacher forcing.
                 0 = turn off teacher forcing
                 1 = always use teacher forcing
 
@@ -40,18 +43,20 @@ class Seq2Seq(nn.Module):
 
         # padded_label: (max_action_len x batch_size)
         padded_label = torch.nn.utils.rnn.pad_packed_sequence(
-            label, total_length=cfg.max_action_len
+            label, total_length=max_action_len
         )[0]
 
         encoder_output, encoder_state = self.encoder(input)
 
         decoder_state = self._init_decoder_state(encoder_state)
         decoder_input = self._init_action(batch_size=batch_size)
-        init_logits = self._init_logits(
+
+        # As the model doesn't generate SOA, we need to add it to logits manually.
+        SOA_logits = self._SOA_logits(
             batch_size=batch_size, action_vocab_size=self.decoder.vocab_size
         )
 
-        logits = [init_logits]
+        logits = [SOA_logits]
         for i in range(1, max_action_len):
             _logits, decoder_state = self.decoder(
                 decoder_input.unsqueeze(0), decoder_state
@@ -87,7 +92,7 @@ class Seq2Seq(nn.Module):
             device=self.device,
         )
 
-    def _init_logits(self, batch_size, action_vocab_size):
+    def _SOA_logits(self, batch_size, action_vocab_size):
         """Make initial logits as part of the output."""
         return F.one_hot(self._init_action(batch_size), action_vocab_size).type(
             torch.float32
