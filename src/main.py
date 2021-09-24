@@ -97,14 +97,21 @@ def main():
     )
 
     # initialize the model and optimizer
-    encoder = EncoderLSTM(vocab_size=train_ds.word_vocab_size, **cfg.EncoderLSTM)
-    decoder = DecoderLSTM(vocab_size=train_ds.action_vocab_size, **cfg.DecoderLSTM)
+    encoder = EncoderLSTM(
+        vocab_size=train_ds.word_vocab_size,
+        device=cfg.device,
+        **cfg.EncoderLSTM,
+    )
+    decoder = DecoderLSTM(
+        vocab_size=train_ds.action_vocab_size,
+        device=cfg.device,
+        **cfg.DecoderLSTM,
+    )
     model = Seq2Seq(encoder, decoder, special_tokens=special_tokens, device=cfg.device)
     optimizer = optim.Adam(model.parameters(), lr=cfg.learning_rate)
 
     # load checkpoints
-    checkpoints = Checkpoints(cfg.checkpoint_dir)
-    if pt := checkpoints.latest():
+    if pt := cfg.checkpoints.latest():
         state = torch.load(pt)
         model.load_state_dict(state["model_state_dict"])
         optimizer.load_state_dict(state["optimizer_state_dict"])
@@ -131,7 +138,7 @@ def main():
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         }
-        torch.save(state, checkpoints.new())
+        torch.save(state, cfg.checkpoints.new())
 
 
 if __name__ == "__main__":

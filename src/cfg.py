@@ -1,22 +1,26 @@
+import sys
 import torch
+from pathlib import Path
+from utils.checkpoints import Checkpoints
+
+model_name = sys.argv[1]
+model_dir = Path("models") / model_name
+log_dir = model_dir / "logs"
+checkpoints = Checkpoints(model_dir / "checkpoints")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 seed = 47
-
-checkpoint_dir = "models/default"
-
-# cuda
-device = torch.device("cuda")
 
 # seq2seq
 EncoderLSTM = {
     "embedding_dim": 64,
     "hidden_size": 256,
-    "device": device,
+    "dropout_p": 0.0,
 }
 DecoderLSTM = {
     "embedding_dim": 64,
     "hidden_size": 256,
-    "device": device,
+    "dropout_p": 0.0,
 }
 
 # training
