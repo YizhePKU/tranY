@@ -14,7 +14,7 @@ seed = 47
 # seq2seq
 EncoderLSTM = {
     "embedding_dim": 64,
-    "hidden_size": 256,
+    "hidden_size": 128,
     "dropout_p": 0.0,
 }
 DecoderLSTM = {

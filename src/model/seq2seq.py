@@ -28,10 +28,10 @@ class Seq2Seq(nn.Module):
         assert type(input) == torch.nn.utils.rnn.PackedSequence
         batch_size = input.batch_sizes[0]
 
-        encoder_output, encoder_hidden = self.encoder(input)
+        encoder_output, encoder_state = self.encoder(input)
 
-        # initialize decoder_hidden with the final value of encoder_hidden
-        decoder_hidden = encoder_hidden
+        # initialize decoder_state from final encoder_state
+        decoder_state = _init_decoder_state(encoder_state)
 
         # use SOA as the first prompt
         init_action = torch.full(
@@ -43,11 +43,22 @@ class Seq2Seq(nn.Module):
         logits = []
         actions = [init_action]
         for i in range(max_action_len):
-            _logits, decoder_hidden = self.decoder(
-                actions[i].unsqueeze(0), decoder_hidden
+            _logits, decoder_state = self.decoder(
+                actions[i].unsqueeze(0), decoder_state
             )
             logits.append(_logits)
             # TODO: is it OK to sample with argmax?
             _actions = torch.argmax(_logits, dim=1)
             actions.append(_actions)
         return torch.stack(logits), torch.stack(actions[1:])
+
+
+def _init_decoder_state(encoder_state):
+    # Assuming encoder.hidden_size * 2 == decoder.hidden_size,
+    # we can just concat the two encoder state to get the decoder state
+    hidden_state, cell_state = encoder_state
+    _, batch_size, encoder_hidden_size = hidden_state.shape
+    return (
+        hidden_state.permute(1, 0, 2).reshape(1, batch_size, 2 * encoder_hidden_size),
+        cell_state.permute(1, 0, 2).reshape(1, batch_size, 2 * encoder_hidden_size),
+    )
