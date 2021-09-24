@@ -101,12 +101,18 @@ def main():
     # load CoNaLa intent-snippet pairs and map them to tensors
     # FIXME: train_ds and dev_ds are using different word and action mappings.
     # This causes dev performance to become completely nonsense.
-    train_ds = ConalaDataset(
-        "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
-    )
-    dev_ds = ConalaDataset(
-        "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
-    )
+    dataset_cache = cfg.model_dir / "dataset_cache.pt"
+    if dataset_cache.exists():
+        train_ds, dev_ds = torch.load(dataset_cache)
+        print("Loaded dataset cache")
+    else:
+        train_ds = ConalaDataset(
+            "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
+        )
+        dev_ds = ConalaDataset(
+            "data/conala-dev.json", grammar=grammar, special_tokens=special_tokens
+        )
+        torch.save((train_ds, dev_ds), dataset_cache)
 
     # initialize the model and optimizer
     encoder = EncoderLSTM(
