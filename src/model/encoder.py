@@ -15,21 +15,21 @@ class EncoderLSTM(nn.Module):
         self.dropout = nn.Dropout(dropout_p)
         self.lstm = nn.LSTM(embedding_dim, hidden_size, bidirectional=True, device=device)
 
-    def forward(self, input_words):
+    def forward(self, input):
         """Feed words to the encoder.
 
         Args:
-            input_words (PackedSequence): ids of the input words.
+            input (PackedSequence): ids of the input words.
 
         Returns:
             encoding (PackedSequence x embedding_dim): encodings of the input words.
             hidden: new hidden state.
         """
         # apply embedding+dropout pointwise to the packed sequence
-        embedded = self.embedding(input_words.data)
+        embedded = self.embedding(input.data)
         dropped = self.dropout(embedded)
         packed = torch.nn.utils.rnn.PackedSequence(
-            dropped, input_words.batch_sizes, input_words.sorted_indices
+            dropped, input.batch_sizes, input.sorted_indices
         )
         encoding, hidden = self.lstm(packed)
         return encoding, hidden

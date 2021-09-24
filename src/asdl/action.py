@@ -97,6 +97,9 @@ def actions_to_mr_dfs(actions, grammar):
 
     Returns:
         (dict): the reconstructed mr
+
+    Raises:
+        ValueError: the actions cannot be converted back to mr.
     """
     cardinality = extract_cardinality(grammar)
     actions = deque(actions)
@@ -131,11 +134,11 @@ def actions_to_mr_dfs(actions, grammar):
         elif frontier[0] == "GenToken":
             return frontier[1]
         else:
-            assert False
+            raise ValueError("Bad action sequence")
 
     retval = reconstruct_mr()
     if actions:
-        raise Exception("Bad action sequence")
+        raise ValueError("Bad action sequence")
     return retval
 
 

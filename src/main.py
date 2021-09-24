@@ -43,7 +43,7 @@ def calculate_loss(logits, label):
 def calculate_errors(logits, label):
     assert type(label) == torch.nn.utils.rnn.PackedSequence
     label, _ = torch.nn.utils.rnn.pad_packed_sequence(label)
-    return torch.sum(torch.argmax(logits, dim=2) != label.to(cfg.device))
+    return torch.sum(torch.argmax(logits, dim=2) != label)
 
 
 def train_epoch(model, ds, optimizer):
