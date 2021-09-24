@@ -8,9 +8,9 @@ from utils.tensorboard import writer, profiler
 from utils.checkpoints import Checkpoints
 from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
-from seq2seq.encoder import EncoderLSTM
-from seq2seq.decoder import DecoderLSTM
-from seq2seq.model import Seq2Seq
+from model.encoder import EncoderLSTM
+from model.decoder import DecoderLSTM
+from model.seq2seq import Seq2Seq
 
 
 def load(ds):
