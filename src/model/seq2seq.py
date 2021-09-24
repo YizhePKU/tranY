@@ -13,6 +13,10 @@ class Seq2Seq(nn.Module):
         self.special_tokens = special_tokens
         self.device = device
 
+        self.decoder_cell_init = nn.Linear(
+            2 * encoder.hidden_size, decoder.hidden_size, device=device
+        )
+
     def forward(self, input, label, max_action_len, teacher_forcing_p):
         """Feed sentences to the seq2seq model.
 
@@ -63,17 +67,16 @@ class Seq2Seq(nn.Module):
         return torch.stack(logits)
 
     def _init_decoder_state(self, encoder_state):
-        """Initialize decoder_state from final encoder_state."""
-        # Assuming encoder.hidden_size * 2 == decoder.hidden_size,
-        # we can just concat the two encoder state to get the decoder state
-        hidden_state, cell_state = encoder_state
-        _, batch_size, encoder_hidden_size = hidden_state.shape
-        return (
-            hidden_state.permute(1, 0, 2).reshape(
-                1, batch_size, 2 * encoder_hidden_size
-            ),
-            cell_state.permute(1, 0, 2).reshape(1, batch_size, 2 * encoder_hidden_size),
+        """Initialize decoder state with encoder states."""
+        encoder_hidden_state, encoder_cell_state = encoder_state
+        permuted = encoder_cell_state.permute(1, 0, 2).reshape(
+            -1, 2 * self.encoder.hidden_size
         )
+        lineared = self.decoder_cell_init(permuted)
+        tanh_ed = torch.tanh(lineared)
+        decoder_cell_state = tanh_ed.view(1, -1, self.decoder.hidden_size)
+        decoder_hidden_state = torch.zeros_like(decoder_cell_state)
+        return decoder_hidden_state, decoder_cell_state
 
     def _init_action(self, batch_size):
         """Make an initial action to feed to the decoder."""
