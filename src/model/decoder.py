@@ -15,10 +15,10 @@ class DecoderLSTM(nn.Module):
         self.out = nn.Linear(hidden_size, vocab_size, device=device)
 
     def forward(self, input, hidden):
-        """Feed actions to the decoder.
+        """Feed recipes to the decoder.
 
         Args:
-            input (seq_length x batch_size): ids of the input actions.
+            input (seq_length x batch_size): ids of the input recipes.
             hidden: previous hidden state. defaults to zeros if not provided or None.
 
         Returns:

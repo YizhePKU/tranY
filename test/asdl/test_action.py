@@ -4,10 +4,10 @@ import pytest
 from data.conala import ConalaDataset
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
-from asdl.action import (
+from asdl.recipe import (
     extract_cardinality,
-    mr_to_actions_dfs,
-    actions_to_mr_dfs,
+    mr_to_recipe_dfs,
+    recipe_to_mr_dfs,
     int2str,
     str2int,
 )
@@ -38,21 +38,21 @@ def test_cardinality_field_order(grammar):
     ]
 
 
-def test_mr_to_actions_dfs_variable(grammar):
+def test_mr_to_recipe_dfs_variable(grammar):
     mr = {
         "_tag": "Name",
         "id": "x",
         "ctx": {"_tag": "Store"},
     }
-    actions = list(mr_to_actions_dfs(mr, grammar))
-    assert actions == [
+    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    assert recipe == [
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
         ("ApplyConstr", "Store"),
     ]
 
 
-def test_mr_to_actions_dfs_assignment(grammar):
+def test_mr_to_recipe_dfs_assignment(grammar):
     mr = {
         "_tag": "Assign",
         "targets": [
@@ -69,8 +69,8 @@ def test_mr_to_actions_dfs_assignment(grammar):
         },
         "type_comment": None,
     }
-    actions = list(mr_to_actions_dfs(mr, grammar))
-    assert actions == [
+    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    assert recipe == [
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
@@ -83,12 +83,12 @@ def test_mr_to_actions_dfs_assignment(grammar):
     ]
 
 
-def test_mr_to_actions_dfs(grammar):
+def test_mr_to_recipe_dfs(grammar):
     snippet = "panda.read_csv('file.csv', nrows=100)"
     mr = ast_to_mr(ast.parse(snippet))
     mr = mr["body"][0]  # strip the outer 'module' tag
-    actions = list(mr_to_actions_dfs(mr, grammar))
-    assert actions == [
+    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    assert recipe == [
         ("ApplyConstr", "Expr"),
         ("ApplyConstr", "Call"),
         ("ApplyConstr", "Attribute"),
@@ -111,13 +111,13 @@ def test_mr_to_actions_dfs(grammar):
     ]
 
 
-def test_actions_to_mr_dfs_variable(grammar):
-    actions = [
+def test_recipe_to_mr_dfs_variable(grammar):
+    recipe = [
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
         ("ApplyConstr", "Store"),
     ]
-    mr = actions_to_mr_dfs(actions, grammar)
+    mr = recipe_to_mr_dfs(recipe, grammar)
     assert mr == {
         "_tag": "Name",
         "id": "x",
@@ -125,8 +125,8 @@ def test_actions_to_mr_dfs_variable(grammar):
     }
 
 
-def test_actions_to_mr_dfs_assignment(grammar):
-    actions = [
+def test_recipe_to_mr_dfs_assignment(grammar):
+    recipe = [
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
@@ -137,7 +137,7 @@ def test_actions_to_mr_dfs_assignment(grammar):
         ("Reduce",),
         ("Reduce",),
     ]
-    mr = actions_to_mr_dfs(actions, grammar)
+    mr = recipe_to_mr_dfs(recipe, grammar)
     assert mr == {
         "_tag": "Assign",
         "targets": [
@@ -156,7 +156,7 @@ def test_actions_to_mr_dfs_assignment(grammar):
     }
 
 
-def test_mr_to_actions_dfs_list(grammar):
+def test_mr_to_recipe_dfs_list(grammar):
     mr = {
         "_tag": "List",
         "elts": [
@@ -165,8 +165,8 @@ def test_mr_to_actions_dfs_list(grammar):
         ],
         "ctx": {"_tag": "Load"},
     }
-    actions = list(mr_to_actions_dfs(mr, grammar))
-    assert actions == [
+    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    assert recipe == [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -179,8 +179,8 @@ def test_mr_to_actions_dfs_list(grammar):
     ]
 
 
-def test_actions_to_mr_dfs_list(grammar):
-    actions = [
+def test_recipe_to_mr_dfs_list(grammar):
+    recipe = [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -191,7 +191,7 @@ def test_actions_to_mr_dfs_list(grammar):
         ("Reduce",),
         ("ApplyConstr", "Load"),
     ]
-    mr = actions_to_mr_dfs(actions, grammar)
+    mr = recipe_to_mr_dfs(recipe, grammar)
     assert mr == {
         "_tag": "List",
         "elts": [
@@ -202,18 +202,18 @@ def test_actions_to_mr_dfs_list(grammar):
     }
 
 
-def test_actions_dfs_roundtrip(grammar):
+def test_recipe_dfs_roundtrip(grammar):
     ds = ConalaDataset("data/conala-train.json", grammar=grammar)
     for intent, snippet in zip(ds.intents, ds.snippets):
         pyast = ast.parse(snippet)
         mr = ast_to_mr(pyast)
-        actions = list(mr_to_actions_dfs(mr, grammar))
-        reconstructed_mr = actions_to_mr_dfs(actions, grammar)
+        recipe = list(mr_to_recipe_dfs(mr, grammar))
+        reconstructed_mr = recipe_to_mr_dfs(recipe, grammar)
         assert mr == reconstructed_mr
 
 
 def test_int2str():
-    actions = [
+    recipe = [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -224,8 +224,8 @@ def test_int2str():
         ("Reduce",),
         ("ApplyConstr", "Load"),
     ]
-    new_actions = int2str(actions)
-    assert new_actions == [
+    new_recipe = int2str(recipe)
+    assert new_recipe == [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", "<int>1"),
@@ -239,7 +239,7 @@ def test_int2str():
 
 
 def test_str2int():
-    actions = [
+    recipe = [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", "<int>1"),
@@ -250,8 +250,8 @@ def test_str2int():
         ("Reduce",),
         ("ApplyConstr", "Load"),
     ]
-    new_actions = str2int(actions)
-    assert new_actions == [
+    new_recipe = str2int(recipe)
+    assert new_recipe == [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),

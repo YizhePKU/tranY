@@ -1,6 +1,15 @@
-"""Convert between MR and action sequences.
+"""Provides tools for working with recipes.
 
-Currently only DFS-based encoding is implemented(as described in the tranX paper),
+A recipe is a list of actions used to construct a MR. Each action is one of:
+  - ("ApplyConstr", tag)
+  - ("Reduce",)
+  - ("GenToken", token)
+
+Why the name "recipe"? We could just refer to them as "actions", but then it's hard to
+find a good plural form ("action's"?). The original tranX implementation uses "hypothesis"
+and "hypotheses", but that's way too hard to spell correctly.
+
+Currently only DFS-based encoding is implemented (as described in the tranX paper),
 but other encodings are also possible.
 """
 
@@ -16,12 +25,12 @@ def extract_cardinality(grammar):
     """Extract cardinality for all fields in a given grammar.
 
     Args:
-        grammar (asdl.parser.Module): a top-level grammar instance, as returned by `asdl.parser.parse()`.
+        grammar: a top-level grammar instance, as returned by `asdl.parser.parse()`.
 
     Returns:
-        (dict[str,OrderedDict[str,str]]): a mapping of tag_name -> field_name -> cardinality
-            where cardinality is one of 'single', 'multiple', or 'optional'.
-            Field names are listed in declaration order.
+        a mapping of tag_name -> field_name -> cardinality, where cardinality is
+        one of 'single', 'multiple', or 'optional'. Field names are listed in
+        declaration order.
     """
     retval = {}
 
@@ -49,22 +58,19 @@ def extract_cardinality(grammar):
     return retval
 
 
-def mr_to_actions_dfs(mr, grammar):
-    """Convert mr to an action sequence in depth-first order, as described in the tranX paper.
+def mr_to_recipe_dfs(mr, grammar):
+    """Convert MR to a recipe in depth-first order, as described in the tranX paper.
 
-    After each field is processed, a "Reduce" action is generated if:
+    After each field is processed, a "reduce" action is generated if:
         - a field has cardinality "multiple"
         - a field has cardinality "optional" and currently does not have a value
 
     Args:
-        mr (dict): source mr
-        grammar (asdl.parser.Module): reference grammar
+        mr: MR to convert from
+        grammar: reference grammar
 
-    Yields:
-        a sequence of actions, where each action can be one of:
-            - ("ApplyConstr", tag)
-            - ("Reduce",)
-            - ("GenToken", token)
+    Returns:
+        a recipe, the conversion result
     """
     cardinality = extract_cardinality(grammar)
     if isinstance(mr, dict):
@@ -72,42 +78,42 @@ def mr_to_actions_dfs(mr, grammar):
         yield ("ApplyConstr", tag_name)
         for field, card in cardinality[tag_name].items():
             if card == "single":
-                yield from mr_to_actions_dfs(mr[field], grammar)
+                yield from mr_to_recipe_dfs(mr[field], grammar)
             elif card == "multiple":
                 for item in mr[field]:
-                    yield from mr_to_actions_dfs(item, grammar)
+                    yield from mr_to_recipe_dfs(item, grammar)
                 yield ("Reduce",)
             elif card == "optional":
                 if mr[field] is None:
                     yield ("Reduce",)
                 else:
-                    yield from mr_to_actions_dfs(mr[field], grammar)
+                    yield from mr_to_recipe_dfs(mr[field], grammar)
             else:
                 assert False
     else:
         yield ("GenToken", mr)
 
 
-def actions_to_mr_dfs(actions, grammar):
-    """Convert a depth-first action sequence to mr, as described in the tranX paper.
+def recipe_to_mr_dfs(recipe, grammar):
+    """Convert a depth-first recipe to MR, as described in the tranX paper.
 
     Args:
-        actions (list[tuple]): a sequence of actions, as returned by ``mr_to_actions_dfs``
-        grammar (asdl.parser.Module): reference grammar
+        recipe: recipe to convert from
+        grammar: reference grammar
 
     Returns:
-        (dict): the reconstructed mr
+        the reconstructed MR
 
     Raises:
-        ValueError: the actions cannot be converted back to mr.
+        ValueError: when the recipe does not conform to grammar.
     """
     cardinality = extract_cardinality(grammar)
-    actions = deque(actions)
+    recipe = deque(recipe)
 
     def reconstruct_mr():
-        # consumes some items from the deque and reconstruct part of the mr
-        # returns the reconstructed mr
-        frontier = actions.popleft()
+        # consumes some items from the deque and reconstruct part of the MR
+        # returns the reconstructed MR
+        frontier = recipe.popleft()
         if frontier[0] == "ApplyConstr":
             tag_name = frontier[1]
             retval = dict(_tag=tag_name)
@@ -117,14 +123,14 @@ def actions_to_mr_dfs(actions, grammar):
                 elif card == "multiple":
                     retval[field] = []
                     while True:
-                        if actions[0] == ("Reduce",):
-                            actions.popleft()
+                        if recipe[0] == ("Reduce",):
+                            recipe.popleft()
                             break
                         else:
                             retval[field].append(reconstruct_mr())
                 elif card == "optional":
-                    if actions[0] == ("Reduce",):
-                        actions.popleft()
+                    if recipe[0] == ("Reduce",):
+                        recipe.popleft()
                         retval[field] = None
                     else:
                         retval[field] = reconstruct_mr()
@@ -134,45 +140,50 @@ def actions_to_mr_dfs(actions, grammar):
         elif frontier[0] == "GenToken":
             return frontier[1]
         else:
-            raise ValueError("Bad action sequence")
+            raise ValueError("Bad recipe")
 
     retval = reconstruct_mr()
-    if actions:
-        raise ValueError("Bad action sequence")
+    if recipe:
+        raise ValueError("Bad recipe")
     return retval
 
 
-def int2str(actions):
-    """Replace integers with strings.
+def int2str(recipe):
+    """Replace integers in a recipe with strings.
 
     For example, ("GenToken", 1) will be replaced with ("GenToken", "<int>1").
 
     Args:
-        actions (list[tuple]): actions to process.
+        recipe: recipe to process.
 
     Returns:
-        (list[tuple]): actions after replacement.
+        a recipe after the replacement.
     """
-    actions = deepcopy(actions)
-    for idx, action in enumerate(actions):
+    recipe = deepcopy(recipe)
+    for idx, action in enumerate(recipe):
         if action[0] == "GenToken" and isinstance(action[1], int):
-            actions[idx] = ("GenToken", f"<int>{action[1]}")
-    return actions
+            recipe[idx] = ("GenToken", f"<int>{action[1]}")
+    return recipe
 
 
-def str2int(actions):
-    """Restore strings back to integers.
+def str2int(recipe):
+    """Restore strings in a recipe back to integers.
 
     For example, ("GenToken", "<int>1") will be replaced with ("GenToken", 1).
 
     Args:
-        actions (list[tuple]): actions to process.
+        recipe: recipe to process.
 
     Returns:
-        (list[tuple]): actions after replacement.
+        a recipe after being restored.
     """
-    actions = deepcopy(actions)
-    for idx, action in enumerate(actions):
+    recipe = deepcopy(recipe)
+    for idx, action in enumerate(recipe):
         if action[0] == "GenToken" and action[1].startswith("<int>"):
-            actions[idx] = ("GenToken", int(action[1][5:]))
-    return actions
+            recipe[idx] = ("GenToken", int(action[1][5:]))
+    return recipe
+
+
+def get_continuations(recipe):
+    """Generate all valid follow-up actions given an (incomplete) recipe."""
+    pass

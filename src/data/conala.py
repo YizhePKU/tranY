@@ -4,15 +4,16 @@ import ast
 import json
 import re
 from copy import deepcopy
-import torch
-import torch.nn.functional as F
 
 import cfg
-from asdl.utils import walk, tagged
+import torch
+import torch.nn.functional as F
 from asdl.convert import ast_to_mr
-from asdl.action import mr_to_actions_dfs
-from data.tokenizer import train_intent_tokenizer, make_lookup_tables
+from asdl.recipe import mr_to_recipe_dfs
+from asdl.utils import tagged, walk
 from utils.flatten import flatten
+
+from data.tokenizer import make_lookup_tables, train_intent_tokenizer
 
 
 class ConalaDataset(torch.utils.data.Dataset):
@@ -21,8 +22,8 @@ class ConalaDataset(torch.utils.data.Dataset):
     The entire dataset is loaded into memory since it's tiny(~500KB).
 
     Outputs:
-        sentence (*): tensor of input words, including SOS and EOS.
-        label (cfg.max_action_len): tensor of output actions, including SOA and EOA.
+        words (*): ids of input words, including SOS and EOS.
+        label (cfg.max_recipe_len): ids of output recipes, including SOA and EOA.
     """
 
     def __init__(
@@ -67,8 +68,8 @@ class ConalaDataset(torch.utils.data.Dataset):
             *(canonicalize(intent, mr) for intent, mr in zip(self.intents, self.mrs))
         )
 
-        # convert mr to action sequences
-        self.action_seqs = [list(mr_to_actions_dfs(mr, grammar)) for mr in self.c_mrs]
+        # convert MR to recipes
+        self.recipes = [list(mr_to_recipe_dfs(mr, grammar)) for mr in self.c_mrs]
 
         # train an intent tokenizer
         self.intent_tokenizer = train_intent_tokenizer(
@@ -77,7 +78,7 @@ class ConalaDataset(torch.utils.data.Dataset):
 
         # make action loopup tables
         self.id2action, self.action2id = make_lookup_tables(
-            flatten(self.action_seqs),
+            flatten(self.recipes),
             special_tokens=special_tokens,
         )
 
@@ -88,11 +89,11 @@ class ConalaDataset(torch.utils.data.Dataset):
         c_intent = self.c_intents[index]
         sentence = torch.tensor(self.intent_tokenizer.encode(c_intent).ids)
 
-        actions = ["[SOA]"] + self.action_seqs[index] + ["[EOA]"]
+        recipe = ["[SOA]"] + self.recipes[index] + ["[EOA]"]
         label = torch.tensor(
-            [self.action2id[action] for action in actions], dtype=torch.long
+            [self.action2id[action] for action in recipe], dtype=torch.long
         )
-        label = F.pad(label, (0, cfg.max_action_len - len(actions)))
+        label = F.pad(label, (0, cfg.max_recipe_len - len(recipe)))
         return sentence, label
 
     def __len__(self):

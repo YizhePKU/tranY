@@ -24,6 +24,6 @@ DecoderLSTM = {
 
 # training
 learning_rate = 1e-2
-max_action_len = 100
+max_recipe_len = 100
 batch_size = 16
-teacher_forcing_p = 0
+teacher_forcing_p = 1

@@ -22,28 +22,28 @@ class Seq2Seq(nn.Module):
             2 * encoder.hidden_size, decoder.hidden_size, device=device
         )
 
-    def forward(self, input, label, max_action_len, teacher_forcing_p):
+    def forward(self, input, label, max_recipe_len, teacher_forcing_p):
         """Feed words to the seq2seq model.
 
         Args:
             input (PackedSequence): ids of the input words.
             label (PackedSequence): ids of expected output actions, used for teacher forcing.
-            max_action_len (int): number of actions the model is allowed to generate.
+            max_recipe_len (int): maximum number of actions per recipe to generate.
             teacher_forcing_p (float): how often to use teacher forcing.
                 0 = turn off teacher forcing
                 1 = always use teacher forcing
 
         Returns:
-            logits (max_action_len, batch_size, action_vocab_size): model predictions,
+            logits (max_recipe_len, batch_size, action_vocab_size): model predictions,
                 including SOA and EOA.
         """
         assert 0 <= teacher_forcing_p <= 1
         assert type(input) == torch.nn.utils.rnn.PackedSequence
         batch_size = input.batch_sizes[0]
 
-        # padded_label: (max_action_len x batch_size)
+        # padded_label: (max_recipe_len x batch_size)
         padded_label = torch.nn.utils.rnn.pad_packed_sequence(
-            label, total_length=max_action_len
+            label, total_length=max_recipe_len
         )[0]
 
         encoder_output, encoder_state = self.encoder(input)
@@ -57,7 +57,7 @@ class Seq2Seq(nn.Module):
         )
 
         logits = [SOA_logits]
-        for i in range(1, max_action_len):
+        for i in range(1, max_recipe_len):
             _logits, decoder_state = self.decoder(
                 decoder_input.unsqueeze(0), decoder_state
             )

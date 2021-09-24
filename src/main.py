@@ -4,17 +4,18 @@ usage: python3 main.py MODEL_NAME
 """
 
 import random
+
 import torch
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 
 import cfg
-from utils.tensorboard import writer, profiler
 from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
-from model.encoder import EncoderLSTM
 from model.decoder import DecoderLSTM
+from model.encoder import EncoderLSTM
 from model.seq2seq import Seq2Seq
+from utils.tensorboard import profiler, writer
 
 
 def load(ds):
@@ -58,7 +59,7 @@ def train_epoch(model, ds, optimizer):
         logits = model(
             input,
             label,
-            max_action_len=cfg.max_action_len,
+            max_recipe_len=cfg.max_recipe_len,
             teacher_forcing_p=cfg.teacher_forcing_p,
         )
         loss = calculate_loss(logits, label)
@@ -86,7 +87,7 @@ def evaluate(model, ds, teacher_forcing_p=0):
             logits = model(
                 input,
                 label,
-                max_action_len=cfg.max_action_len,
+                max_recipe_len=cfg.max_recipe_len,
                 teacher_forcing_p=teacher_forcing_p,
             )
             loss += calculate_loss(logits, label).item()
