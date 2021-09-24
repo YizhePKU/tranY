@@ -59,10 +59,10 @@ class ConalaDataset(torch.utils.data.Dataset):
             self.intents.append(intent)
             self.snippets.append(snippet)
 
-        # convert snippet to mr
+        # convert snippet to MR
         self.mrs = [ast_to_mr(ast.parse(snippet)) for snippet in self.snippets]
 
-        # canonicalize intent and mr
+        # canonicalize intent and MR
         # prefix "c" stands for canonicalized
         self.c_intents, self.c_mrs, self.ph2mrs = zip(
             *(canonicalize(intent, mr) for intent, mr in zip(self.intents, self.mrs))
@@ -120,7 +120,7 @@ def canonicalize(intent, mr):
     #
     # This replacement strategy covers ~90% of quotes in the training set.
 
-    new_mr = deepcopy(mr)  # make a copy so that we can modify mr in place
+    new_mr = deepcopy(mr)  # make a copy so that we can modify MR in place
     ph2mr = {}  # map placeholders to original parts of the MR
     quote2ph = {}  # map quotes to placeholders to handle duplicated quotes
 
@@ -153,16 +153,15 @@ def canonicalize(intent, mr):
 def uncanonicalize(mr, ph2mr):
     """Replace placeholders in MR back to the original.
 
-    Returns mr that can be converted back to a valid AST.
-
-    Note that mr is updated in place.
+    Returns a MR that can be converted back to a valid AST.
     """
+    new_mr = deepcopy(mr)  # make a copy so that we can modify MR in place
     for placeholder, target in ph2mr.items():
-        for node in walk(mr):
+        for node in walk(new_mr):
             # replace identifiers
             if tagged(node, "Name") and node["id"] == placeholder:
                 node["id"] = target
             # replace string literals
             if tagged(node, "Constant") and node["value"] == placeholder:
                 node["value"] = target
-    return mr
+    return new_mr
