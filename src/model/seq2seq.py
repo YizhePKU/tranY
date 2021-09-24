@@ -27,7 +27,8 @@ class Seq2Seq(nn.Module):
                 1 = always use teacher forcing
 
         Returns:
-            logits (max_action_len, batch_size, action_vocab_size): model predictions.
+            logits (max_action_len, batch_size, action_vocab_size): model predictions,
+                including SOA and EOA.
         """
         assert 0 <= teacher_forcing_p <= 1
         assert type(input) == torch.nn.utils.rnn.PackedSequence
@@ -41,21 +42,24 @@ class Seq2Seq(nn.Module):
         encoder_output, encoder_state = self.encoder(input)
 
         decoder_state = self._init_decoder_state(encoder_state)
-        next_action = self._init_action(batch_size)
+        decoder_input = self._init_action(batch_size=batch_size)
+        init_logits = self._init_logits(
+            batch_size=batch_size, action_vocab_size=self.decoder.vocab_size
+        )
 
-        logits = []
-        for i in range(max_action_len):
+        logits = [init_logits]
+        for i in range(1, max_action_len):
             _logits, decoder_state = self.decoder(
-                next_action.unsqueeze(0), decoder_state
+                decoder_input.unsqueeze(0), decoder_state
             )
             logits.append(_logits)
 
             if torch.rand(1) < teacher_forcing_p:
                 # use teacher forcing
-                next_action = padded_label[i]
+                decoder_input = padded_label[i]
             else:
                 # don't use teacher forcing, sample with argmax instead
-                next_action = torch.argmax(_logits, dim=1)
+                decoder_input = torch.argmax(_logits, dim=1)
         return torch.stack(logits)
 
     def _init_decoder_state(self, encoder_state):
@@ -78,4 +82,10 @@ class Seq2Seq(nn.Module):
             (batch_size,),
             self.special_tokens.index("[SOA]"),
             device=self.device,
+        )
+
+    def _init_logits(self, batch_size, action_vocab_size):
+        """Make initial logits as part of the output."""
+        return F.one_hot(self._init_action(batch_size), action_vocab_size).type(
+            torch.float32
         )
