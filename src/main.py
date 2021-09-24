@@ -51,8 +51,13 @@ def train_epoch(model, ds, optimizer):
     for batch in load(ds):
         optimizer.zero_grad()
         input, label = batch
-        logits, _ = model(input.to(cfg.device), max_action_len=cfg.max_action_len)
-        loss = calculate_loss(logits, label.to(cfg.device))
+        logits = model(
+            input,
+            label,
+            max_action_len=cfg.max_action_len,
+            teacher_forcing_p=cfg.teacher_forcing_p,
+        )
+        loss = calculate_loss(logits, label)
         loss.backward()
         optimizer.step()
 
@@ -73,8 +78,13 @@ def evaluate(model, ds):
         loss = 0
         errors = 0
         for input, label in load(ds):
-            logits, _ = model(input, max_action_len=cfg.max_action_len)
-            loss += calculate_loss(logits, label.to(cfg.device)).item()
+            logits = model(
+                input,
+                label,
+                max_action_len=cfg.max_action_len,
+                teacher_forcing_p=0,
+            )
+            loss += calculate_loss(logits, label).item()
             errors += calculate_errors(logits, label).item()
     return loss / len(ds), errors / len(ds)
 
@@ -89,6 +99,8 @@ def main():
     grammar = parse_asdl("src/asdl/Python.asdl")
 
     # load CoNaLa intent-snippet pairs and map them to tensors
+    # FIXME: train_ds and dev_ds are using different word and action mappings.
+    # This causes dev performance to become completely nonsense.
     train_ds = ConalaDataset(
         "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
     )

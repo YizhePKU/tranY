@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import cfg
+
 
 class Seq2Seq(nn.Module):
     def __init__(self, encoder, decoder, special_tokens, device):
@@ -11,41 +13,53 @@ class Seq2Seq(nn.Module):
         self.special_tokens = special_tokens
         self.device = device
 
-    def forward(self, input_words, max_action_len):
+    def forward(self, input, label, max_action_len, teacher_forcing_p):
         """Feed sentences to the seq2seq model.
 
         Decoder outputs are sampled with argmax.
 
         Args:
-            input_words (PackedSequence): ids of the input words.
+            input (PackedSequence): ids of the input words.
+            label (PackedSequence): ids of expected output actions, used for teacher forcing.
             max_action_len (int): number of actions the model is allowed to generate.
+            teacher_forcing_p (float): probability to use teacher forcing at each time step.
+                0 = turn off teacher forcing
+                1 = always use teacher forcing
 
         Returns:
             logits (max_action_len, batch_size, action_vocab_size): model predictions.
-            actions (max_action_len, batch_size): model prediction in action ids,
-                including EOA but not SOA.
         """
-        assert type(input_words) == torch.nn.utils.rnn.PackedSequence
-        batch_size = input_words.batch_sizes[0]
+        assert 0 <= teacher_forcing_p <= 1
+        assert type(input) == torch.nn.utils.rnn.PackedSequence
+        batch_size = input.batch_sizes[0]
 
-        encoder_output, encoder_state = self.encoder(input_words)
+        # padded_label: (max_action_len x batch_size)
+        padded_label = torch.nn.utils.rnn.pad_packed_sequence(
+            label, total_length=cfg.max_action_len
+        )[0]
 
-        # initialize decoder_state from final encoder_state
+        encoder_output, encoder_state = self.encoder(input)
+
         decoder_state = self._init_decoder_state(encoder_state)
+        next_action = self._init_action(batch_size)
 
         logits = []
-        actions = [self._init_decoder_action(batch_size)]
         for i in range(max_action_len):
             _logits, decoder_state = self.decoder(
-                actions[i].unsqueeze(0), decoder_state
+                next_action.unsqueeze(0), decoder_state
             )
             logits.append(_logits)
-            # TODO: is it OK to sample with argmax?
-            _actions = torch.argmax(_logits, dim=1)
-            actions.append(_actions)
-        return torch.stack(logits), torch.stack(actions[1:])
+
+            if torch.rand(1) < teacher_forcing_p:
+                # use teacher forcing
+                next_action = padded_label[i]
+            else:
+                # don't use teacher forcing, sample with argmax instead
+                next_action = torch.argmax(_logits, dim=1)
+        return torch.stack(logits)
 
     def _init_decoder_state(self, encoder_state):
+        """Initialize decoder_state from final encoder_state."""
         # Assuming encoder.hidden_size * 2 == decoder.hidden_size,
         # we can just concat the two encoder state to get the decoder state
         hidden_state, cell_state = encoder_state
@@ -57,7 +71,8 @@ class Seq2Seq(nn.Module):
             cell_state.permute(1, 0, 2).reshape(1, batch_size, 2 * encoder_hidden_size),
         )
 
-    def _init_decoder_action(self, batch_size):
+    def _init_action(self, batch_size):
+        """Make an initial action to feed to the decoder."""
         # use SOA as the first prompt
         return torch.full(
             (batch_size,),
