@@ -75,4 +75,4 @@ def test_canonicalize_roundtrip(grammar):
         mr = ast_to_mr(pyast)
         new_intent, new_mr, ph2mr = canonicalize(intent, mr)
         restored_mr = uncanonicalize(new_mr, ph2mr)
-        assert new_mr == mr
+        assert restored_mr == mr
