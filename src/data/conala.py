@@ -3,6 +3,7 @@
 import ast
 import json
 import re
+import random
 import nltk
 from copy import deepcopy
 
@@ -29,7 +30,7 @@ class ConalaDataset(torch.utils.data.Dataset):
 
     def __init__(
         self, filepath, grammar, rewrite_intent="when-available", special_tokens=[],
-        intent_vocab=None, action_vocab=None
+        intent_vocab=None, action_vocab=None, shuffle=True
     ):
         """
         Args:
@@ -61,6 +62,7 @@ class ConalaDataset(torch.utils.data.Dataset):
             self.intents.append(intent)
             self.snippets.append(snippet)
 
+        # Preprocess: replace strings and variables to `stri`, `vari`
         processed_data = [preprocess_example(self.intents[i], self.snippets[i]) for i in range(len(self.intents))]
         orig_len = len(processed_data)
         # filter invalid canonical_snippet:
@@ -71,6 +73,8 @@ class ConalaDataset(torch.utils.data.Dataset):
             except:
                 return False
         processed_data = list(filter(filter_func, processed_data))
+        if shuffle:
+            processed_data = random.sample(processed_data, len(processed_data))
         new_len = len(processed_data)
         print(f"Passed {orig_len - new_len} invalid code.")
         self.c_intents = [dic["canonical_intent"] for dic in processed_data]            # not tokenized, str

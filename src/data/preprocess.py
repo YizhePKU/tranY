@@ -12,6 +12,16 @@ QUOTED_TOKEN_RE = re.compile(r"(?P<quote>''|[`'\"])(?P<string>.*?)(?P=quote)")
 
 
 def preprocess_example(rewritten_intent, snippet):
+    """
+    Replace str and var.
+    Example:
+        preprocess_example("Fastest Way 'to' `drop` Duplicated", "print(drop / b)")
+        {'canonical_intent': 'Fastest Way str_0 var_0 Duplicated',
+        'intent_tokens': ['fastest', 'way', 'str_0', 'var_0', 'duplicated'],
+        'slot_map': {'str_0': {'value': 'to', 'quote': "'", 'type': 'str'},
+        'var_0': {'value': 'drop', 'quote': '`', 'type': 'var'}},
+        'canonical_snippet': 'print(var_0 / b)'}
+    """
     canonical_intent, slot_map = canonicalize_intent(rewritten_intent)
     canonical_snippet = canonicalize_code(snippet, slot_map)
     intent_tokens = tokenize_intent(canonical_intent)
