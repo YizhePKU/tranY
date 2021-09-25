@@ -58,6 +58,14 @@ def extract_cardinality(grammar):
     return retval
 
 
+def _generator_to_list_function(f):
+    def _inner(*args, **kwargs):
+        return list(f(*args, **kwargs))
+
+    return _inner
+
+
+@_generator_to_list_function
 def mr_to_recipe_dfs(mr, grammar):
     """Convert MR to a recipe in depth-first order, as described in the tranX paper.
 
@@ -186,4 +194,5 @@ def str2int(recipe):
 
 def get_continuations(recipe):
     """Generate all valid follow-up actions given an (incomplete) recipe."""
+    # FIXME: implement this
     pass

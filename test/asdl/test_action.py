@@ -45,7 +45,7 @@ def test_mr_to_recipe_dfs_variable(grammar):
         "id": "x",
         "ctx": {"_tag": "Store"},
     }
-    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
@@ -70,7 +70,7 @@ def test_mr_to_recipe_dfs_assignment(grammar):
         },
         "type_comment": None,
     }
-    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
@@ -88,7 +88,7 @@ def test_mr_to_recipe_dfs(grammar):
     snippet = "panda.read_csv('file.csv', nrows=100)"
     mr = ast_to_mr(ast.parse(snippet))
     mr = mr["body"][0]  # strip the outer 'module' tag
-    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
         ("ApplyConstr", "Expr"),
         ("ApplyConstr", "Call"),
@@ -166,7 +166,7 @@ def test_mr_to_recipe_dfs_list(grammar):
         ],
         "ctx": {"_tag": "Load"},
     }
-    recipe = list(mr_to_recipe_dfs(mr, grammar))
+    recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
         ("ApplyConstr", "List"),
         ("ApplyConstr", "Constant"),
@@ -208,7 +208,7 @@ def test_recipe_dfs_roundtrip(grammar):
     for intent, snippet in zip(ds.intents, ds.snippets):
         pyast = ast.parse(snippet)
         mr = ast_to_mr(pyast)
-        recipe = list(mr_to_recipe_dfs(mr, grammar))
+        recipe = mr_to_recipe_dfs(mr, grammar)
         reconstructed_mr = recipe_to_mr_dfs(recipe, grammar)
         assert mr == reconstructed_mr
 

@@ -69,7 +69,7 @@ class ConalaDataset(torch.utils.data.Dataset):
         )
 
         # convert MR to recipes
-        self.recipes = [list(mr_to_recipe_dfs(mr, grammar)) for mr in self.c_mrs]
+        self.recipes = [mr_to_recipe_dfs(mr, grammar) for mr in self.c_mrs]
 
         # train an intent tokenizer
         self.intent_tokenizer = train_intent_tokenizer(
