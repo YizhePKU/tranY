@@ -3,6 +3,7 @@
 import ast
 import json
 import re
+import nltk
 from copy import deepcopy
 
 import cfg
@@ -12,8 +13,8 @@ from asdl.convert import ast_to_mr
 from asdl.recipe import mr_to_recipe_dfs
 from asdl.utils import tagged, walk
 from utils.flatten import flatten
-
-from data.tokenizer import make_lookup_tables, train_intent_tokenizer
+from data.tokenizer import Vocab
+from data.preprocess import preprocess_example
 
 
 class ConalaDataset(torch.utils.data.Dataset):
@@ -27,7 +28,8 @@ class ConalaDataset(torch.utils.data.Dataset):
     """
 
     def __init__(
-        self, filepath, grammar, rewrite_intent="when-available", special_tokens=[]
+        self, filepath, grammar, rewrite_intent="when-available", special_tokens=[],
+        intent_vocab=None, action_vocab=None
     ):
         """
         Args:
@@ -59,109 +61,83 @@ class ConalaDataset(torch.utils.data.Dataset):
             self.intents.append(intent)
             self.snippets.append(snippet)
 
+        processed_data = [preprocess_example(self.intents[i], self.snippets[i]) for i in range(len(self.intents))]
+        orig_len = len(processed_data)
+        # filter invalid canonical_snippet:
+        def filter_func(dic):
+            try:
+                ast.parse(dic["canonical_snippet"])
+                return True
+            except:
+                return False
+        processed_data = list(filter(filter_func, processed_data))
+        new_len = len(processed_data)
+        print(f"Passed {orig_len - new_len} invalid code.")
+        self.c_intents = [dic["canonical_intent"] for dic in processed_data]            # not tokenized, str
+        self.intent_tokens = [dic["intent_tokens"] for dic in processed_data]           # tokenized, list
+        self.slot_map = [dic["slot_map"] for dic in processed_data]
+        self.c_code = [dic["canonical_snippet"] for dic in processed_data]
         # convert snippet to MR
-        self.mrs = [ast_to_mr(ast.parse(snippet)) for snippet in self.snippets]
-
-        # canonicalize intent and MR
-        # prefix "c" stands for canonicalized
-        self.c_intents, self.c_mrs, self.ph2mrs = zip(
-            *(canonicalize(intent, mr) for intent, mr in zip(self.intents, self.mrs))
-        )
+        self.c_mrs = [ast_to_mr(ast.parse(snippet)) for snippet in self.c_code]
 
         # convert MR to recipes
         self.recipes = [mr_to_recipe_dfs(mr, grammar) for mr in self.c_mrs]
 
-        # train an intent tokenizer
-        self.intent_tokenizer = train_intent_tokenizer(
-            self.c_intents, special_tokens=special_tokens
-        )
+        # build intent vocab
+        if intent_vocab:
+            # use vocab from training set
+            self.intent_vocab = intent_vocab
+        else:
+            self.intent_vocab = Vocab.from_corpus(special_tokens, self.intent_tokens, size=99999)
+        self.intent2id = self.intent_vocab.word2id
+        self.id2intent = self.intent_vocab.id2word
 
-        # make action loopup tables
-        self.id2action, self.action2id = make_lookup_tables(
-            flatten(self.recipes),
-            special_tokens=special_tokens,
-        )
-
-        self.word_vocab_size = self.intent_tokenizer.get_vocab_size()
+        # build action vocab
+        if action_vocab:
+            # use vocab from training set
+            self.action_vocab = action_vocab
+        else:
+            self.action_vocab = Vocab.from_corpus(special_tokens, self.recipes, size=99999)
+        self.action2id = self.action_vocab.word2id
+        self.id2action = self.action_vocab.id2word
         self.action_vocab_size = len(self.id2action)
 
-    def __getitem__(self, index):
-        c_intent = self.c_intents[index]
-        sentence = torch.tensor(self.intent_tokenizer.encode(c_intent).ids)
+        self.sentences = []
+        self.labels = []
+        for index in range(len(self.c_code)):
+            c_intent = self.c_intents[index]
+            sentence = torch.tensor(self.convert_intent_ids(c_intent), dtype=torch.long)
+            self.sentences.append(sentence)
+            recipe = ["[SOA]"] + self.recipes[index] + ["[EOA]"]
+            label = torch.tensor(
+                [self.action2id[action] for action in recipe], dtype=torch.long
+            )
+            label = F.pad(label, (self.action_vocab.pad_id, cfg.max_recipe_len - len(recipe)))
+            self.labels.append(label)
 
-        recipe = ["[SOA]"] + self.recipes[index] + ["[EOA]"]
-        label = torch.tensor(
-            [self.action2id[action] for action in recipe], dtype=torch.long
-        )
-        label = F.pad(label, (0, cfg.max_recipe_len - len(recipe)))
-        return sentence, label
+    def convert_intent_ids(self, intent):
+        """
+        Args: intent is a word list
+        """
+        if isinstance(intent, str):
+            intent = nltk.word_tokenize(intent)
+        return [self.intent2id[word] if word in self.intent2id else self.intent_vocab.unk_id for word in intent]
+    
+    def convert_ids_intent(self, ids):
+        """
+        Args: ids is an id list
+        """
+        return [self.id2intent[id] if id < len(self.id2intent) else "[UNK]" for id in ids]
+
+    def convert_action_ids(self, action):
+        return [self.action2id[word] if word in self.action2id else self.action_vocab.unk_id for word in action]
+    
+    def convert_ids_action(self, ids):
+        return [self.id2action[id] if id < len(self.id2action) else "[UNK]" for id in ids]
+    
+
+    def __getitem__(self, index):
+        return self.sentences[index], self.labels[index]
 
     def __len__(self):
         return len(self.intents)
-
-
-def canonicalize(intent, mr):
-    """Replace free variables and literals in intent and MR with placeholders.
-
-    This is necessary because the intent often includes variables and string literals that
-    must be copied into the generated snippet. Replacing them with placeholders makes it
-    more likely for the tranX model to invoke the copy mechanism.
-
-    Returns (new_intent, new_mr, ph2mr) where ph2mr is a dictionary that maps placeholders
-    to original MR representation in the snippet.
-    """
-    # For each pair of quotes(single/double/backtick) in the intent, do the followings:
-    #   1. generate a placeholder, such as <ph_0>
-    #   2. replace quoted content from the intent with the placeholder
-    #   3. walk target MR and update various tags in place:
-    #        identifiers -- replace with `placeholder`
-    #        string literals -- replace with "placeholder"
-    #        lists, dicts, and sets -- no-op for now
-    #
-    # This replacement strategy covers ~90% of quotes in the training set.
-
-    new_mr = deepcopy(mr)  # make a copy so that we can modify MR in place
-    ph2mr = {}  # map placeholders to original parts of the MR
-    quote2ph = {}  # map quotes to placeholders to handle duplicated quotes
-
-    def generate_placeholder(match):
-        quote = match.group()[1:-1]
-        # returns immediately if we've processed this quote already
-        if quote in quote2ph:
-            return quote2ph[quote]
-        # otherwise generate a new placeholder and proceed
-        ph = f"<ph_{len(ph2mr)}>"
-        quote2ph[quote] = ph
-        for node in walk(new_mr):
-            # replace identifiers
-            if tagged(node, "Name") and node["id"] == quote:
-                ph2mr[ph] = node["id"]
-                node["id"] = ph
-            # replace string literals
-            if tagged(node, "Constant") and node["value"] == quote:
-                ph2mr[ph] = node["value"]
-                node["value"] = ph
-        return ph
-
-    # FIXME: regular doesn't work when intent contains escaped quotes
-    intent = re.sub(r"`.*?`", generate_placeholder, intent)
-    intent = re.sub(r'".*?"', generate_placeholder, intent)
-    intent = re.sub(r"'.*?'", generate_placeholder, intent)
-    return intent, new_mr, ph2mr
-
-
-def uncanonicalize(mr, ph2mr):
-    """Replace placeholders in MR back to the original.
-
-    Returns a MR that can be converted back to a valid AST.
-    """
-    new_mr = deepcopy(mr)  # make a copy so that we can modify MR in place
-    for placeholder, target in ph2mr.items():
-        for node in walk(new_mr):
-            # replace identifiers
-            if tagged(node, "Name") and node["id"] == placeholder:
-                node["id"] = target
-            # replace string literals
-            if tagged(node, "Constant") and node["value"] == placeholder:
-                node["value"] = target
-    return new_mr
