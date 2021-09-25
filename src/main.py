@@ -19,6 +19,12 @@ from utils.tensorboard import profiler, writer
 
 
 def load(ds):
+    """Wrap a Dataset in a DataLoader.
+
+    Variable-length inputs are packed into PackedSequence, which can be fed
+    to the seq2seq model directly.
+    """
+
     def collate_fn(data):
         return (
             torch.nn.utils.rnn.pack_sequence(
