@@ -95,6 +95,7 @@ class ConalaDataset(torch.utils.data.Dataset):
             self.intent_vocab = Vocab.from_corpus(special_tokens, self.intent_tokens, size=99999)
         self.intent2id = self.intent_vocab.word2id
         self.id2intent = self.intent_vocab.id2word
+        self.intent_vocab_size = len(self.id2intent)
 
         # build action vocab
         if action_vocab:
