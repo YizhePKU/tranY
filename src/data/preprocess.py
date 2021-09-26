@@ -1,6 +1,5 @@
 import re
 import ast
-import astor
 import nltk
 # TODO: May stuck due to network reasons. Please download manully from http://www.nltk.org/nltk_data/
 # See StackOverflow: https://stackoverflow.com/questions/4867197/failed-loading-english-pickle-with-nltk-data-load
@@ -28,8 +27,8 @@ def preprocess_example(rewritten_intent, snippet):
     decanonical_snippet = decanonicalize_code(canonical_snippet, slot_map)
 
     # test reconstructor recovers the original code
-    reconstructed_snippet = astor.to_source(ast.parse(snippet)).strip()
-    reconstructed_decanonical_snippet = astor.to_source(ast.parse(decanonical_snippet)).strip()
+    reconstructed_snippet = ast.unparse(ast.parse(snippet)).strip()
+    reconstructed_decanonical_snippet = ast.unparse(ast.parse(decanonical_snippet)).strip()
     assert compare_ast(ast.parse(reconstructed_snippet), ast.parse(reconstructed_decanonical_snippet))
     
     return {'canonical_intent': canonical_intent,
@@ -96,7 +95,7 @@ def canonicalize_code(code, slot_map):
     string2slot = {x['value']: slot_name for slot_name, x in list(slot_map.items())}
     py_ast = ast.parse(code)
     replace_identifiers_in_ast(py_ast, string2slot)
-    canonical_code = astor.to_source(py_ast).strip()
+    canonical_code = ast.unparse(py_ast).strip()
 
     # the following code handles the special case that
     # a list/dict/set mentioned in the intent, like
@@ -133,7 +132,7 @@ def decanonicalize_code(code, slot_map):
     slot2string = {x[0]: x[1]['value'] for x in list(slot_map.items())}
     py_ast = ast.parse(code)
     replace_identifiers_in_ast(py_ast, slot2string)
-    raw_code = astor.to_source(py_ast).strip()
+    raw_code = ast.unparse(py_ast).strip()
     return raw_code
 
 
