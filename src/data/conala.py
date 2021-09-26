@@ -114,9 +114,7 @@ class ConalaDataset(torch.utils.data.Dataset):
             sentence = torch.tensor(self.convert_intent_ids(c_intent), dtype=torch.long)
             self.sentences.append(sentence)
             recipe = ["[SOA]"] + self.recipes[index] + ["[EOA]"]
-            label = torch.tensor(
-                [self.action2id[action] for action in recipe], dtype=torch.long
-            )
+            label = torch.tensor(self.convert_action_ids(recipe), dtype=torch.long)
             label = F.pad(label, (self.action_vocab.pad_id, cfg.max_recipe_len - len(recipe)))
             self.labels.append(label)
 
@@ -145,4 +143,4 @@ class ConalaDataset(torch.utils.data.Dataset):
         return self.sentences[index], self.labels[index]
 
     def __len__(self):
-        return len(self.intents)
+        return len(self.sentences)
