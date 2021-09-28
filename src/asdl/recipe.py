@@ -254,7 +254,10 @@ class Builder:
         return builder
 
     def get_result(self):
-        return self._result["toplevel"]
+        if "toplevel" in self._result:
+            return self._result["toplevel"]
+        else:
+            raise ValueError("Cannot get the result of an empty builder")
 
     def is_done(self):
         return len(self._stack) == 0

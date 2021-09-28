@@ -5,15 +5,9 @@ from data.conala import ConalaDataset
 
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
-from asdl.recipe import (
-    Builder,
-    extract_cardinality,
-    int2str,
-    mr_to_recipe_dfs,
-    preprocess_grammar,
-    recipe_to_mr_dfs,
-    str2int,
-)
+from asdl.recipe import (Builder, extract_cardinality, int2str,
+                         mr_to_recipe_dfs, preprocess_grammar,
+                         recipe_to_mr_dfs, str2int)
 
 
 @pytest.fixture
@@ -394,12 +388,28 @@ def test_builder_assignment(grammar):
 
 
 def test_builder_empty(grammar):
-    pass
+    builder = Builder(grammar)
+    assert builder.is_done() == False
+    with pytest.raises(ValueError):
+        builder.get_result()
 
 
+@pytest.mark.skip(reason='Type checking not implemented yet')
 def test_builder_wrong_type(grammar):
-    pass
+    builder = Builder(grammar)
+    builder.apply_action(('ApplyConstr', 'Expr'))
+    with pytest.raises(ValueError):
+        builder.apply_action(('GenToken', 'Hello'))
 
 
 def test_builder_too_many_actions(grammar):
-    pass
+    recipe = [
+        ("ApplyConstr", "Constant"),
+        ("GenToken", "Hello"),
+        ("Reduce",),
+    ]
+    builder = Builder(grammar)
+    for action in recipe:
+        builder = builder.apply_action(action)
+    with pytest.raises(ValueError):
+        builder.apply_action(("GenToken", "World"))
