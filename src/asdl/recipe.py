@@ -240,7 +240,25 @@ def str2int(recipe):
 
 
 class Builder:
-    """A builder constructs a MR from a recipe, step by step."""
+    """A builder constructs a MR from a recipe, step by step.
+
+    Example:
+
+    >>> recipe = [
+            ("ApplyConstr", "Name"),
+            ("GenToken", "x"),
+            ("ApplyConstr", "Store"),
+        ]
+    >>> builder = Builder(grammar)
+    >>> builder1 = builder.apply_action(recipe[0])
+    >>> builder1.get_result()
+    {"_tag": "Name"}
+    >>> builder2 = builder1.apply_action(recipe[1])
+    >>> builder2.get_result()
+    {"_tag": "Name", "id": "x"}
+
+    Note that a builder is immutable; calling apply_action() returns a new builder.
+    """
 
     def __init__(self, grammar):
         self._grammar = grammar
@@ -254,15 +272,32 @@ class Builder:
         return builder
 
     def get_result(self):
+        """Return the constructed MR so far.
+
+        Raises:
+            ValueError if the builder is empty.
+        """
         if "toplevel" in self._result:
             return self._result["toplevel"]
         else:
             raise ValueError("Cannot get the result of an empty builder")
 
     def is_done(self):
+        """Return whether the MR being built is complete."""
         return len(self._stack) == 0
 
     def apply_action(self, action):
+        """Apply an action to the MR.
+
+        Returns:
+            a builder with updated MR.
+
+        Raises:
+            ValueError if the given action is illegal to apply.
+                (type errors, grammar errors, etc.)
+
+        NOTE: types are currently unchecked.
+        """
         _, _, fields = preprocess_grammar(self._grammar)
         stack = self._stack
         result = self._result
