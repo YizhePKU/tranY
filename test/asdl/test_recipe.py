@@ -6,6 +6,7 @@ from data.conala import ConalaDataset
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
 from asdl.recipe import (
+    Builder,
     extract_cardinality,
     int2str,
     mr_to_recipe_dfs,
@@ -223,7 +224,10 @@ def test_recipe_to_mr_dfs_list(grammar):
 
 
 def test_recipe_dfs_roundtrip(grammar):
-    ds = ConalaDataset("data/conala-train.json", grammar=grammar)
+    special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
+    ds = ConalaDataset(
+        "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
+    )
     for intent, snippet in zip(ds.intents, ds.snippets):
         pyast = ast.parse(snippet)
         mr = ast_to_mr(pyast)
@@ -282,3 +286,120 @@ def test_str2int():
         ("Reduce",),
         ("ApplyConstr", "Load"),
     ]
+
+
+def test_builder_simple(grammar):
+    builder = Builder(grammar)
+    recipe = [
+        ("ApplyConstr", "Name"),
+        ("GenToken", "x"),
+        ("ApplyConstr", "Store"),
+    ]
+
+    builder0 = builder.apply_action(recipe[0])
+    assert builder0.get_result() == {"_tag": "Name"}
+
+    builder1 = builder0.apply_action(recipe[1])
+    assert builder1.get_result() == {"_tag": "Name", "id": "x"}
+
+    builder2 = builder1.apply_action(recipe[2])
+    assert builder2.get_result() == {
+        "_tag": "Name",
+        "id": "x",
+        "ctx": {"_tag": "Store"},
+    }
+
+
+# @pytest.mark.skip(reason="not implemented")
+def test_builder_assignment(grammar):
+    builder = Builder(grammar)
+    recipe = [
+        ("ApplyConstr", "Assign"),
+        ("ApplyConstr", "Name"),
+        ("GenToken", "x"),
+        ("ApplyConstr", "Store"),
+        ("Reduce",),
+        ("ApplyConstr", "Constant"),
+        ("GenToken", 1),
+        ("Reduce",),
+        ("Reduce",),
+    ]
+
+    builder0 = builder.apply_action(recipe[0])
+    assert builder0.get_result() == {
+        "_tag": "Assign",
+    }
+
+    builder1 = builder0.apply_action(recipe[1])
+    assert builder1.get_result() == {
+        "_tag": "Assign",
+        "targets": [
+            {
+                "_tag": "Name",
+            }
+        ],
+    }
+
+    builder2 = builder1.apply_action(recipe[2])
+    builder3 = builder2.apply_action(recipe[3])
+    builder4 = builder3.apply_action(recipe[4])
+    assert builder4.get_result() == {
+        "_tag": "Assign",
+        "targets": [
+            {
+                "_tag": "Name",
+                "id": "x",
+                "ctx": {"_tag": "Store"},
+            }
+        ],
+    }
+
+    builder5 = builder4.apply_action(recipe[5])
+    assert builder5.get_result() == {
+        "_tag": "Assign",
+        "targets": [
+            {
+                "_tag": "Name",
+                "id": "x",
+                "ctx": {"_tag": "Store"},
+            }
+        ],
+        "value": {
+            "_tag": "Constant",
+        },
+    }
+
+    builder6 = builder5.apply_action(recipe[6])
+    builder7 = builder6.apply_action(recipe[7])
+    assert not builder7.is_done()
+
+    builder8 = builder7.apply_action(recipe[8])
+    assert builder8.get_result() == {
+        "_tag": "Assign",
+        "targets": [
+            {
+                "_tag": "Name",
+                "id": "x",
+                "ctx": {"_tag": "Store"},
+            }
+        ],
+        "value": {
+            "_tag": "Constant",
+            "value": 1,
+            "kind": None,
+        },
+        "type_comment": None,
+    }
+    assert builder8.is_done()
+
+
+def test_builder_empty(grammar):
+    pass
+
+
+def test_builder_wrong_type(grammar):
+    pass
+
+
+def test_builder_too_many_actions(grammar):
+    pass

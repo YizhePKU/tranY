@@ -13,9 +13,11 @@ Currently only DFS-based encoding is implemented (as described in the tranX pape
 but other encodings are also possible.
 """
 
-from collections import OrderedDict, deque
+from collections import OrderedDict, deque, namedtuple
 from copy import deepcopy
 from functools import cache
+
+from pyrsistent import get_in, m, pmap, pvector, v
 
 import asdl.parser
 
@@ -70,9 +72,10 @@ def preprocess_grammar(grammar):
         constr2type (dict[str,str]): lookup the type of a constructor.
         fields (dict[str,list[tuple[str,str,str]]]): list fields of a constructor
             in the order they are declared in the grammar, where each field
-            is a (type, name, cardinality) tuple. cardinality can be one of
+            is a namedtuple of (type, name, cardinality). cardinality can be one of
             'single', 'multiple', or 'optional'.
     """
+    Field = namedtuple("Field", ["type", "name", "cardinality"])
     type2constr = {}
     constr2type = {}
     fields = {}
@@ -88,7 +91,7 @@ def preprocess_grammar(grammar):
                 cardinality = "optional"
             else:
                 cardinality = "single"
-            fields[name].append((field.type, field.name, cardinality))
+            fields[name].append(Field(field.type, field.name, cardinality))
 
     for type, value in grammar.types.items():
         type2constr[type] = []
@@ -236,7 +239,71 @@ def str2int(recipe):
     return recipe
 
 
-def get_continuations(recipe):
-    """Generate all valid follow-up actions given an (incomplete) recipe."""
-    # FIXME: implement this
-    pass
+class Builder:
+    """A builder constructs a MR from a recipe, step by step."""
+
+    def __init__(self, grammar):
+        self._grammar = grammar
+        self._result = m(_tag="ROOT")
+        self._stack = v(v("toplevel"))
+
+    def _copywith(self, result, stack):
+        builder = Builder(self._grammar)
+        builder._result = result
+        builder._stack = stack
+        return builder
+
+    def get_result(self):
+        return self._result["toplevel"]
+
+    def is_done(self):
+        return len(self._stack) == 0
+
+    def apply_action(self, action):
+        _, _, fields = preprocess_grammar(self._grammar)
+        stack = self._stack
+        result = self._result
+
+        # pop a path from the stack
+        *stack, path = stack
+
+        # if we're adding values to a list, add another path to keep adding to the list
+        if isinstance(path[-1], int) and action[0] != "Reduce":
+            stack.append(path.set(-1, path[-1] + 1))
+
+        # make an empty list when opening a list
+        if path[-1] == 0:
+            result = result.transform(path[:-1], v())
+
+        if action[0] == "ApplyConstr":
+            # open a constructor
+            result = result.transform(path, m(_tag=action[1]))
+            # add paths for the fields of the constructor (in reverse order)
+            for field in reversed(fields[action[1]]):
+                if field.cardinality == "multiple":
+                    stack.append(path + [field.name, 0])
+                else:
+                    stack.append(path + [field.name])
+            return self._copywith(result, stack)
+        elif action[0] == "Reduce":
+            if isinstance(path[-1], int):
+                # close the list (no-op)
+                return self._copywith(result, stack)
+            else:
+                # set None to an optional field
+                # but check if the field is really optional first
+                parent = get_in(path[:-1], result)
+                field = next(
+                    field for field in fields[parent["_tag"]] if field.name == path[-1]
+                )
+                if field.cardinality == "optional":
+                    result = result.transform(path, None)
+                    return self._copywith(result, stack)
+                else:
+                    raise ValueError("Unexpected Reduce")
+        elif action[0] == "GenToken":
+            # add a token to the tree
+            result = result.transform(path, action[1])
+            return self._copywith(result, stack)
+        else:
+            raise ValueError("Unknown action")
