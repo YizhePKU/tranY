@@ -58,6 +58,50 @@ def extract_cardinality(grammar):
     return retval
 
 
+@cache
+def preprocess_grammar(grammar):
+    """Convert a grammar instance into plain data.
+
+    Args:
+        grammar: a grammar instance.
+
+    Returns:
+        type2constr (dict[str,list[str]]): list constructors of a given type.
+        constr2type (dict[str,str]): lookup the type of a constructor.
+        fields (dict[str,list[tuple[str,str,str]]]): list fields of a constructor
+            in the order they are declared in the grammar, where each field
+            is a (type, name, cardinality) tuple. cardinality can be one of
+            'single', 'multiple', or 'optional'.
+    """
+    type2constr = {}
+    constr2type = {}
+    fields = {}
+
+    def _handle_constr(type, name, obj):
+        type2constr[type].append(name)
+        constr2type[name] = type
+        fields[name] = []
+        for field in obj.fields:
+            if field.seq:
+                cardinality = "multiple"
+            elif field.opt:
+                cardinality = "optional"
+            else:
+                cardinality = "single"
+            fields[name].append((field.type, field.name, cardinality))
+
+    for type, value in grammar.types.items():
+        type2constr[type] = []
+        if isinstance(value, asdl.parser.Sum):
+            for constr in value.types:
+                _handle_constr(type, constr.name, constr)
+        elif isinstance(value, asdl.parser.Product):
+            _handle_constr(type, type, value)
+        else:
+            assert False
+    return type2constr, constr2type, fields
+
+
 def _generator_to_list_function(f):
     def _inner(*args, **kwargs):
         return list(f(*args, **kwargs))

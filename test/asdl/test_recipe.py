@@ -9,6 +9,7 @@ from asdl.recipe import (
     extract_cardinality,
     int2str,
     mr_to_recipe_dfs,
+    preprocess_grammar,
     recipe_to_mr_dfs,
     str2int,
 )
@@ -36,6 +37,24 @@ def test_cardinality_field_order(grammar):
         "body",
         "orelse",
         "type_comment",
+    ]
+
+
+def test_preprocess_grammar(grammar):
+    type2constr, constr2type, fields = preprocess_grammar(grammar)
+    assert type2constr["mod"] == ["Module", "Interactive", "Expression", "FunctionType"]
+    assert type2constr["arguments"] == ["arguments"]
+    assert constr2type["Raise"] == "stmt"
+    assert constr2type["keyword"] == "keyword"
+    assert fields["Assert"] == [
+        ("expr", "test", "single"),
+        ("expr", "msg", "optional"),
+    ]
+    assert fields["comprehension"] == [
+        ("expr", "target", "single"),
+        ("expr", "iter", "single"),
+        ("expr", "ifs", "multiple"),
+        ("int", "is_async", "single"),
     ]
 
 
