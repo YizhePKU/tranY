@@ -60,9 +60,14 @@ def extract_cardinality(grammar):
     return retval
 
 
+Field = namedtuple("Field", ["type", "name", "cardinality"])
+
+
 @cache
 def preprocess_grammar(grammar):
     """Convert a grammar instance into plain data.
+
+    A fake grammar rule "root = (mod toplevel)" is added for easy processing.
 
     Args:
         grammar: a grammar instance.
@@ -70,20 +75,29 @@ def preprocess_grammar(grammar):
     Returns:
         type2constr (dict[str,list[str]]): list constructors of a given type.
         constr2type (dict[str,str]): lookup the type of a constructor.
-        fields (dict[str,list[tuple[str,str,str]]]): list fields of a constructor
-            in the order they are declared in the grammar, where each field
-            is a namedtuple of (type, name, cardinality). cardinality can be one of
-            'single', 'multiple', or 'optional'.
+        fields (dict[str,list[Field]]): list fields of a constructor in the order
+            they are declared in the grammar, where each field is a namedtuple of
+            (type, name, cardinality). cardinality can be one of 'single',
+            'multiple', or 'optional'.
+        name2field (dict[str,dict[str,Field]]): same infomation as fields, but stored
+            as a dict keyed by field name.
     """
-    Field = namedtuple("Field", ["type", "name", "cardinality"])
     type2constr = {}
     constr2type = {}
     fields = {}
+    name2field = {}
+
+    # add the fake grammar rule
+    type2constr["root"] = ["root"]
+    constr2type["root"] = "root"
+    fields["root"] = [Field("mod", "toplevel", "single")]
+    name2field["root"] = {"toplevel": Field("mod", "toplevel", "single")}
 
     def _handle_constr(type, name, obj):
         type2constr[type].append(name)
         constr2type[name] = type
         fields[name] = []
+        name2field[name] = {}
         for field in obj.fields:
             if field.seq:
                 cardinality = "multiple"
@@ -92,6 +106,7 @@ def preprocess_grammar(grammar):
             else:
                 cardinality = "single"
             fields[name].append(Field(field.type, field.name, cardinality))
+            name2field[name][field.name] = Field(field.type, field.name, cardinality)
 
     for type, value in grammar.types.items():
         type2constr[type] = []
@@ -102,7 +117,7 @@ def preprocess_grammar(grammar):
             _handle_constr(type, type, value)
         else:
             assert False
-    return type2constr, constr2type, fields
+    return type2constr, constr2type, fields, name2field
 
 
 def _generator_to_list_function(f):
@@ -262,7 +277,7 @@ class Builder:
 
     def __init__(self, grammar):
         self._grammar = grammar
-        self._result = m(_tag="ROOT")
+        self._result = m(_tag="root")
         self._stack = v(v("toplevel"))
 
     def _copywith(self, result, stack):
@@ -300,7 +315,7 @@ class Builder:
 
         NOTE: types are currently unchecked.
         """
-        _, _, fields = preprocess_grammar(self._grammar)
+        _, _, fields, name2field = preprocess_grammar(self._grammar)
         stack = self._stack
         result = self._result
 
@@ -332,10 +347,8 @@ class Builder:
             else:
                 # set None to an optional field
                 # but check if the field is really optional first
-                parent = get_in(path[:-1], result)
-                field = next(
-                    field for field in fields[parent["_tag"]] if field.name == path[-1]
-                )
+                frontier = get_in(path[:-1] + ["_tag"], result)
+                field = name2field[frontier][path[-1]]
                 if field.cardinality == "optional":
                     result = result.transform(path, None)
                     return self._copywith(result, stack)

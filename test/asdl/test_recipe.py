@@ -36,7 +36,7 @@ def test_cardinality_field_order(grammar):
 
 
 def test_preprocess_grammar(grammar):
-    type2constr, constr2type, fields = preprocess_grammar(grammar)
+    type2constr, constr2type, fields, name2fields = preprocess_grammar(grammar)
     assert type2constr["mod"] == ["Module", "Interactive", "Expression", "FunctionType"]
     assert type2constr["arguments"] == ["arguments"]
     assert constr2type["Raise"] == "stmt"
@@ -51,6 +51,8 @@ def test_preprocess_grammar(grammar):
         ("expr", "ifs", "multiple"),
         ("int", "is_async", "single"),
     ]
+    assert name2fields["FunctionDef"]["args"] == ("arguments", "args", "single")
+    assert name2fields["ExceptHandler"]["body"] == ("stmt", "body", "multiple")
 
 
 def test_mr_to_recipe_dfs_variable(grammar):
@@ -394,12 +396,12 @@ def test_builder_empty(grammar):
         builder.result
 
 
-@pytest.mark.skip(reason='Type checking not implemented yet')
+@pytest.mark.skip(reason="Type checking not implemented yet")
 def test_builder_wrong_type(grammar):
     builder = Builder(grammar)
-    builder.apply_action(('ApplyConstr', 'Expr'))
+    builder.apply_action(("ApplyConstr", "Expr"))
     with pytest.raises(ValueError):
-        builder.apply_action(('GenToken', 'Hello'))
+        builder.apply_action(("GenToken", "Hello"))
 
 
 def test_builder_too_many_actions(grammar):
