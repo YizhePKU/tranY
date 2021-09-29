@@ -271,7 +271,8 @@ class Builder:
         builder._stack = stack
         return builder
 
-    def get_result(self):
+    @property
+    def result(self):
         """Return the constructed MR so far.
 
         Raises:
@@ -282,7 +283,8 @@ class Builder:
         else:
             raise ValueError("Cannot get the result of an empty builder")
 
-    def is_done(self):
+    @property
+    def done(self):
         """Return whether the MR being built is complete."""
         return len(self._stack) == 0
 

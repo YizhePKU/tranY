@@ -291,13 +291,13 @@ def test_builder_simple(grammar):
     ]
 
     builder0 = builder.apply_action(recipe[0])
-    assert builder0.get_result() == {"_tag": "Name"}
+    assert builder0.result == {"_tag": "Name"}
 
     builder1 = builder0.apply_action(recipe[1])
-    assert builder1.get_result() == {"_tag": "Name", "id": "x"}
+    assert builder1.result == {"_tag": "Name", "id": "x"}
 
     builder2 = builder1.apply_action(recipe[2])
-    assert builder2.get_result() == {
+    assert builder2.result == {
         "_tag": "Name",
         "id": "x",
         "ctx": {"_tag": "Store"},
@@ -320,12 +320,12 @@ def test_builder_assignment(grammar):
     ]
 
     builder0 = builder.apply_action(recipe[0])
-    assert builder0.get_result() == {
+    assert builder0.result == {
         "_tag": "Assign",
     }
 
     builder1 = builder0.apply_action(recipe[1])
-    assert builder1.get_result() == {
+    assert builder1.result == {
         "_tag": "Assign",
         "targets": [
             {
@@ -337,7 +337,7 @@ def test_builder_assignment(grammar):
     builder2 = builder1.apply_action(recipe[2])
     builder3 = builder2.apply_action(recipe[3])
     builder4 = builder3.apply_action(recipe[4])
-    assert builder4.get_result() == {
+    assert builder4.result == {
         "_tag": "Assign",
         "targets": [
             {
@@ -349,7 +349,7 @@ def test_builder_assignment(grammar):
     }
 
     builder5 = builder4.apply_action(recipe[5])
-    assert builder5.get_result() == {
+    assert builder5.result == {
         "_tag": "Assign",
         "targets": [
             {
@@ -365,10 +365,10 @@ def test_builder_assignment(grammar):
 
     builder6 = builder5.apply_action(recipe[6])
     builder7 = builder6.apply_action(recipe[7])
-    assert not builder7.is_done()
+    assert not builder7.done
 
     builder8 = builder7.apply_action(recipe[8])
-    assert builder8.get_result() == {
+    assert builder8.result == {
         "_tag": "Assign",
         "targets": [
             {
@@ -384,14 +384,14 @@ def test_builder_assignment(grammar):
         },
         "type_comment": None,
     }
-    assert builder8.is_done()
+    assert builder8.done
 
 
 def test_builder_empty(grammar):
     builder = Builder(grammar)
-    assert builder.is_done() == False
+    assert builder.done == False
     with pytest.raises(ValueError):
-        builder.get_result()
+        builder.result
 
 
 @pytest.mark.skip(reason='Type checking not implemented yet')
