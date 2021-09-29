@@ -7,7 +7,6 @@ from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
 from asdl.recipe import (
     Builder,
-    extract_cardinality,
     int2str,
     mr_to_recipe_dfs,
     preprocess_grammar,
@@ -19,27 +18,6 @@ from asdl.recipe import (
 @pytest.fixture
 def grammar():
     return parse_asdl("src/asdl/Python.asdl")
-
-
-def test_cardinality(grammar):
-    cardinality = extract_cardinality(grammar)
-    assert cardinality["Module"]["body"] == "multiple"
-    assert cardinality["ClassDef"]["name"] == "single"
-    assert cardinality["keyword"]["arg"] == "optional"
-    assert cardinality["arguments"]["defaults"] == "multiple"
-
-
-def test_cardinality_field_order(grammar):
-    cardinality = extract_cardinality(grammar)
-    assert list(cardinality["Module"].keys()) == ["body", "type_ignores"]
-    assert list(cardinality["AsyncFor"].keys()) == [
-        "target",
-        "iter",
-        "body",
-        "orelse",
-        "type_comment",
-    ]
-
 
 def test_preprocess_grammar(grammar):
     type2constr, constr2type, fields, name2fields = preprocess_grammar(grammar)
