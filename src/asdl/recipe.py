@@ -257,27 +257,24 @@ def str2int(recipe):
 class Builder:
     """A builder constructs a MR from a recipe, step by step.
 
-    Example:
-
-    >>> recipe = [
-            ("ApplyConstr", "Name"),
-            ("GenToken", "x"),
-            ("ApplyConstr", "Store"),
-        ]
-    >>> builder = Builder(grammar)
-    >>> builder1 = builder.apply_action(recipe[0])
-    >>> builder1.get_result()
-    {"_tag": "Name"}
-    >>> builder2 = builder1.apply_action(recipe[1])
-    >>> builder2.get_result()
-    {"_tag": "Name", "id": "x"}
-
     Note that a builder is immutable; calling apply_action() returns a new builder.
     """
 
     def __init__(self, grammar):
         self._grammar = grammar
         self._result = m(_tag="root")
+        # self._stack is a stack of paths, where each path is a list of keys
+        # pointing to the field being modified.
+        #
+        # This is used to emulate recursive calls.
+        #
+        # For example, if the last value of self._stack is
+        #     ["toplevel", "body", "args", 2, "value"]
+        # then the next field to modify is
+        #     self._result["toplevel"]["body"]["args"][2]["value"]
+        #
+        # Note that if the cardinality of the field is multiple,
+        # the path ends with the field name, NOT an index.
         self._stack = v(v("toplevel"))
 
     def _copywith(self, result, stack):
@@ -303,6 +300,53 @@ class Builder:
         """Return whether the MR being built is complete."""
         return len(self._stack) == 0
 
+    @property
+    def current_frontier(self):
+        """Return the name of the frontier constructor."""
+        if self._stack:
+            return get_in(self._stack[-1][:-1], self._result)["_tag"]
+        else:
+            raise ValueError("Cannot get current frontier of a completed builder.")
+
+    @property
+    def current_field(self):
+        """Return the field (type, name, cardinality) to be updated by the next action."""
+        if self._stack:
+            _, _, _, name2field = preprocess_grammar(self._grammar)
+            path = self._stack[-1]
+            return name2field[self.current_frontier][path[-1]]
+        else:
+            raise ValueError("Cannot get current field of a completed builder.")
+
+    @property
+    def allowed_actions(self):
+        """Return a list of actions that are OK to apply.
+
+        When the cardinality of the next field is "multiple", the result
+        includes ("Reduce",)
+
+        When the type of the next field is an identifier, integer, or string, the result
+        includes ("GenToken",). It's not a real action, of course, just a placeholder
+        for any GenToken action.
+        """
+        type2constr, _, _, _ = preprocess_grammar(self._grammar)
+        field_type, _, field_cardinality = self.current_field
+        if field_type in ("identifier", "int", "string", "constant"):
+            actions = [("GenToken",)]
+        else:
+            actions = [("ApplyConstr", constr) for constr in type2constr[field_type]]
+        if field_cardinality in ["multiple", "optional"]:
+            actions.append(("Reduce",))
+        return actions
+
+    def _is_action_allowed(self, action):
+        allowed_actions = self.allowed_actions
+        if action in allowed_actions:
+            return True
+        if action[0] == "GenToken" and ("GenToken",) in allowed_actions:
+            return True
+        return False
+
     def apply_action(self, action):
         """Apply an action to the MR.
 
@@ -312,51 +356,51 @@ class Builder:
         Raises:
             ValueError if the given action is illegal to apply.
                 (type errors, grammar errors, etc.)
-
-        NOTE: types are currently unchecked.
         """
-        _, _, fields, name2field = preprocess_grammar(self._grammar)
+        if not self._stack:
+            raise ValueError("Cannot apply action to a completed builder")
+
+        if not self._is_action_allowed(action):
+            raise ValueError("Trying to apply an illegal action")
+
+        _, _, fields, _ = preprocess_grammar(self._grammar)
         stack = self._stack
         result = self._result
 
         # pop a path from the stack
-        *stack, path = stack
+        stack, path = stack[:-1], stack[-1]
 
-        # if we're adding values to a list, add another path to keep adding to the list
-        if isinstance(path[-1], int) and action[0] != "Reduce":
-            stack.append(path.set(-1, path[-1] + 1))
-
-        # make an empty list when opening a list
-        if path[-1] == 0:
-            result = result.transform(path[:-1], v())
+        if self.current_field.cardinality == "multiple":
+            # create the list if necessary
+            if not get_in(path, result):
+                result = result.transform(path, v())
+            # if we're not closing the list, push this path back onto the stack
+            if action[0] != "Reduce":
+                stack = stack.append(path)
+            # also, append an index to path so that we can add items to the list
+            path = path.append(len(get_in(path, result)))
 
         if action[0] == "ApplyConstr":
             # open a constructor
             result = result.transform(path, m(_tag=action[1]))
             # add paths for the fields of the constructor (in reverse order)
             for field in reversed(fields[action[1]]):
-                if field.cardinality == "multiple":
-                    stack.append(path + [field.name, 0])
-                else:
-                    stack.append(path + [field.name])
+                stack = stack.append(path + [field.name])
             return self._copywith(result, stack)
         elif action[0] == "Reduce":
-            if isinstance(path[-1], int):
+            cardinality = self.current_field.cardinality
+            if cardinality == "multiple":
                 # close the list (no-op)
                 return self._copywith(result, stack)
-            else:
+            elif cardinality == "optional":
                 # set None to an optional field
-                # but check if the field is really optional first
-                frontier = get_in(path[:-1] + ["_tag"], result)
-                field = name2field[frontier][path[-1]]
-                if field.cardinality == "optional":
-                    result = result.transform(path, None)
-                    return self._copywith(result, stack)
-                else:
-                    raise ValueError("Unexpected Reduce")
+                result = result.transform(path, None)
+                return self._copywith(result, stack)
+            else:
+                assert False
         elif action[0] == "GenToken":
             # add a token to the tree
             result = result.transform(path, action[1])
             return self._copywith(result, stack)
         else:
-            raise ValueError("Unknown action")
+            assert False

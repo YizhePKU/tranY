@@ -5,9 +5,15 @@ from data.conala import ConalaDataset
 
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
-from asdl.recipe import (Builder, extract_cardinality, int2str,
-                         mr_to_recipe_dfs, preprocess_grammar,
-                         recipe_to_mr_dfs, str2int)
+from asdl.recipe import (
+    Builder,
+    extract_cardinality,
+    int2str,
+    mr_to_recipe_dfs,
+    preprocess_grammar,
+    recipe_to_mr_dfs,
+    str2int,
+)
 
 
 @pytest.fixture
@@ -287,29 +293,38 @@ def test_str2int():
 def test_builder_simple(grammar):
     builder = Builder(grammar)
     recipe = [
+        ("ApplyConstr", "Expression"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
         ("ApplyConstr", "Store"),
     ]
 
     builder0 = builder.apply_action(recipe[0])
-    assert builder0.result == {"_tag": "Name"}
+    assert builder0.result == {"_tag": "Expression"}
 
     builder1 = builder0.apply_action(recipe[1])
-    assert builder1.result == {"_tag": "Name", "id": "x"}
+    assert builder1.result == {"_tag": "Expression", "body": {"_tag": "Name"}}
 
     builder2 = builder1.apply_action(recipe[2])
     assert builder2.result == {
-        "_tag": "Name",
-        "id": "x",
-        "ctx": {"_tag": "Store"},
+        "_tag": "Expression",
+        "body": {"_tag": "Name", "id": "x"},
+    }
+
+    builder3 = builder2.apply_action(recipe[3])
+    assert builder3.result == {
+        "_tag": "Expression",
+        "body": {
+            "_tag": "Name",
+            "id": "x",
+            "ctx": {"_tag": "Store"},
+        },
     }
 
 
-# @pytest.mark.skip(reason="not implemented")
 def test_builder_assignment(grammar):
-    builder = Builder(grammar)
     recipe = [
+        ("ApplyConstr", "Module"),
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
@@ -317,76 +332,40 @@ def test_builder_assignment(grammar):
         ("Reduce",),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
-        ("Reduce",),
-        ("Reduce",),
+        ("Reduce",),  # close Constant.kind
+        ("Reduce",),  # close assign.msg
+        ("Reduce",),  # close Module.body
+        ("Reduce",),  # close Module.type_ignores
     ]
+    builder = Builder(grammar)
 
-    builder0 = builder.apply_action(recipe[0])
-    assert builder0.result == {
-        "_tag": "Assign",
-    }
+    for i, action in enumerate(recipe):
+        print(i)
+        builder = builder.apply_action(action)
 
-    builder1 = builder0.apply_action(recipe[1])
-    assert builder1.result == {
-        "_tag": "Assign",
-        "targets": [
+    assert builder.done
+    assert builder.result == {
+        "_tag": "Module",
+        "body": [
             {
-                "_tag": "Name",
+                "_tag": "Assign",
+                "targets": [
+                    {
+                        "_tag": "Name",
+                        "id": "x",
+                        "ctx": {"_tag": "Store"},
+                    }
+                ],
+                "value": {
+                    "_tag": "Constant",
+                    "value": 1,
+                    "kind": None,
+                },
+                "type_comment": None,
             }
         ],
+        "type_ignores": [],
     }
-
-    builder2 = builder1.apply_action(recipe[2])
-    builder3 = builder2.apply_action(recipe[3])
-    builder4 = builder3.apply_action(recipe[4])
-    assert builder4.result == {
-        "_tag": "Assign",
-        "targets": [
-            {
-                "_tag": "Name",
-                "id": "x",
-                "ctx": {"_tag": "Store"},
-            }
-        ],
-    }
-
-    builder5 = builder4.apply_action(recipe[5])
-    assert builder5.result == {
-        "_tag": "Assign",
-        "targets": [
-            {
-                "_tag": "Name",
-                "id": "x",
-                "ctx": {"_tag": "Store"},
-            }
-        ],
-        "value": {
-            "_tag": "Constant",
-        },
-    }
-
-    builder6 = builder5.apply_action(recipe[6])
-    builder7 = builder6.apply_action(recipe[7])
-    assert not builder7.done
-
-    builder8 = builder7.apply_action(recipe[8])
-    assert builder8.result == {
-        "_tag": "Assign",
-        "targets": [
-            {
-                "_tag": "Name",
-                "id": "x",
-                "ctx": {"_tag": "Store"},
-            }
-        ],
-        "value": {
-            "_tag": "Constant",
-            "value": 1,
-            "kind": None,
-        },
-        "type_comment": None,
-    }
-    assert builder8.done
 
 
 def test_builder_empty(grammar):
@@ -396,18 +375,15 @@ def test_builder_empty(grammar):
         builder.result
 
 
-@pytest.mark.skip(reason="Type checking not implemented yet")
 def test_builder_wrong_type(grammar):
     builder = Builder(grammar)
-    builder.apply_action(("ApplyConstr", "Expr"))
     with pytest.raises(ValueError):
         builder.apply_action(("GenToken", "Hello"))
 
 
 def test_builder_too_many_actions(grammar):
     recipe = [
-        ("ApplyConstr", "Constant"),
-        ("GenToken", "Hello"),
+        ("ApplyConstr", "Interactive"),
         ("Reduce",),
     ]
     builder = Builder(grammar)
@@ -415,3 +391,14 @@ def test_builder_too_many_actions(grammar):
         builder = builder.apply_action(action)
     with pytest.raises(ValueError):
         builder.apply_action(("GenToken", "World"))
+
+
+def test_builder_allowed_actions(grammar):
+    builder = Builder(grammar)
+    builder = builder.apply_action(("ApplyConstr", "Expression"))
+    assert ("ApplyConstr", "IfExp") in builder.allowed_actions
+    assert len(builder.allowed_actions) == 27
+
+    builder = builder.apply_action(("ApplyConstr", "Constant"))
+    assert ("GenToken",) in builder.allowed_actions
+    assert len(builder.allowed_actions) == 1
