@@ -1,15 +1,3 @@
-import sys
-from pathlib import Path
-
-import torch
-
-from utils.checkpoints import Checkpoints
-
-model_name = sys.argv[1] if len(sys.argv) >= 2 else "default"
-model_dir = Path("models") / model_name
-log_dir = model_dir / "logs"
-checkpoints = Checkpoints(model_dir / "checkpoints")
-
 seed = 47
 
 # seq2seq
@@ -25,7 +13,7 @@ DecoderLSTM = {
     "hidden_size": 256,
     "nlayers": 1,
     "dropout_p": 0.3,
-    "context_size": 256, # 2 * encoder.hidden_size
+    "context_size": 256,  # 2 * encoder.hidden_size
 }
 
 # training
