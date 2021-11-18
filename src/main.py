@@ -89,13 +89,22 @@ class TranY(pl.LightningModule):
         logits = self(input, label, input_length, label_length)
         loss = calculate_loss(logits, label)
         errors = calculate_errors(logits, label)
+        return {
+            "loss": loss,
+            "errors": errors,
+        }
+
+    def training_epoch_end(self, outputs):
+        loss = [d["loss"] for d in outputs]
+        avg_loss = sum(loss) / len(loss)
+        errors = [d["errors"] for d in outputs]
+        avg_errors = sum(errors) / len(errors)
         self.log_dict(
             {
-                "Train/Loss": loss,
-                "Train/Errors": errors,
+                "Train/loss": avg_loss,
+                "Train/errors": avg_errors,
             }
         )
-        return loss
 
     def validation_step(self, batch, batch_idx):
         input, label, input_length, label_length = batch
@@ -106,19 +115,22 @@ class TranY(pl.LightningModule):
         logits = self(input, label, input_length, label_length)
         loss = calculate_loss(logits, label)
         errors = calculate_errors(logits, label)
+        return {
+            "loss": loss,
+            "errors": errors,
+        }
+
+    def validation_epoch_end(self, outputs):
+        loss = [d["loss"] for d in outputs]
+        avg_loss = sum(loss) / len(loss)
+        errors = [d["errors"] for d in outputs]
+        avg_errors = sum(errors) / len(errors)
         self.log_dict(
             {
-                "Val/Loss": loss,
-                "Val/Errors": errors,
+                "Train/loss": avg_loss,
+                "Train/errors": avg_errors,
             }
         )
-        # return loss, errors
-
-    # def validation_step_end(self, data):
-    #     loss = sum(x[0] for x in data)
-    #     errors = sum(x[1] for x in data)
-    #     self.log("loss", loss)
-    #     self.log("errors", errors)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=cfg.learning_rate)
