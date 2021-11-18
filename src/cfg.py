@@ -9,7 +9,6 @@ model_name = sys.argv[1] if len(sys.argv) >= 2 else "default"
 model_dir = Path("models") / model_name
 log_dir = model_dir / "logs"
 checkpoints = Checkpoints(model_dir / "checkpoints")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 seed = 47
 

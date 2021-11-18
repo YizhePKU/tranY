@@ -20,27 +20,22 @@ class EncoderDecoder(nn.Module):
             max_label_length is the maximum length of the labels.
     """
 
-    def __init__(self, encoder, decoder, device):
+    def __init__(self, encoder, decoder):
         super(EncoderDecoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.predictor = nn.Linear(
             decoder.hidden_size,
             decoder.action_vocab_size,
-            device=device,
         )
-        self.device = device
-
         d = 2 if encoder.bidirectional else 1
-        self.decoder_cell_init = nn.Linear(
-            d * encoder.hidden_size, decoder.hidden_size, device=device
-        )
+        self.decoder_cell_init = nn.Linear(d * encoder.hidden_size, decoder.hidden_size)
 
     def _init_decoder_state(self, encoder_output, encoder_state, batch_size):
         nlayers = self.decoder.nlayers
         hidden_size = self.decoder.hidden_size
-        decoder_hidden = torch.zeros(
-            (nlayers, batch_size, hidden_size), device=self.device
+        decoder_hidden = torch.zeros((nlayers, batch_size, hidden_size)).type_as(
+            encoder_output
         )
 
         encoder_hidden, encoder_cell = encoder_state
@@ -50,7 +45,9 @@ class EncoderDecoder(nn.Module):
 
     def forward(self, input, label, input_length, label_length):
         batch_size = len(input_length)
-        sentence_mask = unpack(pack(input, input_length.cpu(), enforce_sorted=False))[0] == 0
+        sentence_mask = (
+            unpack(pack(input, input_length.cpu(), enforce_sorted=False))[0] == 0
+        )
 
         encoder_output, _, encoder_state = self.encoder(input, input_length)
 
@@ -62,8 +59,7 @@ class EncoderDecoder(nn.Module):
         )
         decoder_att_output = torch.zeros(
             (batch_size, self.decoder.hidden_size),
-            device=self.device,
-        )
+        ).type_as(input)
         for t in range(max(label_length)):
             decoder_att_output, decoder_state = self.decoder(
                 label[t],
@@ -101,7 +97,6 @@ class EncoderLSTM(nn.Module):
         nlayers,
         dropout_p,
         bidirectional,
-        device,
     ):
         super(EncoderLSTM, self).__init__()
         self.vocab_size = vocab_size
@@ -110,16 +105,14 @@ class EncoderLSTM(nn.Module):
         self.nlayers = nlayers
         self.dropout_p = dropout_p
         self.bidirectional = bidirectional
-        self.device = device
 
-        self.embedding = nn.Embedding(vocab_size, embedding_dim, device=device)
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
         self.dropout = nn.Dropout(dropout_p)
         self.lstm = nn.LSTM(
             embedding_dim,
             hidden_size,
             nlayers,
             bidirectional=bidirectional,
-            device=device,
         )
 
     def forward(self, input, length, state=None):
@@ -156,7 +149,6 @@ class DecoderLSTM(nn.Module):
         nlayers,
         dropout_p,
         context_size,
-        device,
     ):
         super(DecoderLSTM, self).__init__()
         self.action_vocab_size = action_vocab_size
@@ -166,19 +158,15 @@ class DecoderLSTM(nn.Module):
         self.dropout_p = dropout_p
         # if bidirectional, context_size should be 2 * encoder.hidden_size
         self.context_size = context_size
-        self.device = device
 
         self.dropout = nn.Dropout(dropout_p)
-        self.embedding = nn.Embedding(action_vocab_size, embedding_dim, device=device)
+        self.embedding = nn.Embedding(action_vocab_size, embedding_dim)
         self.lstm = nn.LSTM(
             embedding_dim + hidden_size,
             hidden_size,
             nlayers,
-            device=device,
         )
-        self.merge_context_output = nn.Linear(
-            context_size + hidden_size, hidden_size, device=device
-        )
+        self.merge_context_output = nn.Linear(context_size + hidden_size, hidden_size)
 
     def _calculate_attention(self, query, key, value, sentence_mask):
         """Perform standand attention calculation.
