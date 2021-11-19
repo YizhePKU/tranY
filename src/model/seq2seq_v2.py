@@ -172,9 +172,9 @@ class DecoderLSTM(nn.Module):
         """Perform standand attention calculation.
 
         Args:
-            query (batch_size, d1)
-            key (batch_size, d1)
-            value (max_sentence_length, batch_size, d2)
+            query (batch_size, key_d)
+            key (max_sentence_length, batch_size, key_d)
+            value (max_sentence_length, batch_size, value_d)
             value_mask (max_sentence_length, batch_size):
                 boolean tensor indicating paddings in value.
 
