@@ -1,8 +1,8 @@
 from argparse import ArgumentParser
 
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import TensorBoardLogger
 import torch
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from asdl.parser import parse as parse_asdl
 from data.conala import ConalaDataset
@@ -68,4 +68,4 @@ model = TranY(
     encoder_vocab_size=train_ds.intent_vocab_size,
     decoder_vocab_size=train_ds.action_vocab_size
 )
-trainer.fit(model, train_loader)
+trainer.fit(model, train_loader, val_loader)

@@ -76,9 +76,7 @@ class TranY(pl.LightningModule):
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
 
-    def training_step(self, batch, batch_idx):
-        # train with teacher forcing
-        sentence, label, sentence_length, label_length = batch
+    def forward_teacher_forcing(self, sentence, label, sentence_length, label_length):
         batch_size = len(sentence_length)
         sentence_mask = (
             unpack(pack(sentence, sentence_length.cpu(), enforce_sorted=False))[0] > 0
@@ -97,7 +95,6 @@ class TranY(pl.LightningModule):
                 prev_att_output,
                 decoder_state,
             )
-
             # (batch_size, n_query = 1, key_d)
             query = prev_att_output.unsqueeze(1)
             # (batch_size, n_kv, key_d)
@@ -109,7 +106,14 @@ class TranY(pl.LightningModule):
             prev_att_output = self.merge_attention(att, decoder_output)
             decoder_att_outputs.append(prev_att_output)
         logits = self.predictor(torch.stack(decoder_att_outputs))
+        return logits
 
+    def training_step(self, batch, batch_idx):
+        # train with teacher forcing
+        sentence, label, sentence_length, label_length = batch
+        logits = self.forward_teacher_forcing(
+            sentence, label, sentence_length, label_length
+        )
         loss = calculate_loss(logits, label)
         errors = calculate_errors(logits, label)
         return {
@@ -126,6 +130,30 @@ class TranY(pl.LightningModule):
             {
                 "Train/loss": avg_loss,
                 "Train/errors": avg_errors,
+            }
+        )
+
+    def validation_step(self, batch, batch_idx):
+        sentence, label, sentence_length, label_length = batch
+        logits = self.forward_teacher_forcing(
+            sentence, label, sentence_length, label_length
+        )
+        loss = calculate_loss(logits, label)
+        errors = calculate_errors(logits, label)
+        return {
+            "loss": loss,
+            "errors": errors,
+        }
+
+    def validation_epoch_end(self, outputs):
+        loss = [d["loss"] for d in outputs]
+        avg_loss = sum(loss) / len(loss)
+        errors = [d["errors"] for d in outputs]
+        avg_errors = sum(errors) / len(errors)
+        self.log_dict(
+            {
+                "Val/loss": avg_loss,
+                "Val/errors": avg_errors,
             }
         )
 
