@@ -33,9 +33,15 @@ def mr_to_ast(mr):
     if isinstance(mr, dict):
         constructor = getattr(ast, mr["_tag"])
         kwargs = {}
+        if issubclass(constructor, ast.expr) or issubclass(constructor, ast.stmt):
+            # add fake lineno
+            kwargs['lineno'] = 1
         for field, value in mr.items():
             if field != "_tag":
-                kwargs[field] = mr_to_ast(value)
+                if isinstance(value, list):
+                    kwargs[field] = [mr_to_ast(item) for item in value]
+                else:
+                    kwargs[field] = mr_to_ast(value)
         return constructor(**kwargs)
     else:
         return mr

@@ -13,15 +13,15 @@ def load(ds, batch_size, shuffle=False):
     """Wrap a Dataset in a DataLoader."""
 
     def collate_fn(data):
-        input = torch.nn.utils.rnn.pad_sequence([input for input, _ in data])
-        input_lengths = [len(input) for input, _ in data]
+        sentence = torch.nn.utils.rnn.pad_sequence([input for input, _ in data])
+        sentence_length = [len(input) for input, _ in data]
         label = torch.nn.utils.rnn.pad_sequence([label for _, label in data])
-        label_lengths = [len(label) for _, label in data]
+        label_length = [len(label) for _, label in data]
         return (
-            input,
+            sentence,
             label,
-            torch.tensor(input_lengths),
-            torch.tensor(label_lengths),
+            torch.tensor(sentence_length),
+            torch.tensor(label_length),
         )
 
     return torch.utils.data.DataLoader(
@@ -62,10 +62,28 @@ train_loader = load(train_ds, args.batch_size)
 val_loader = load(val_ds, args.batch_size)
 
 logger = TensorBoardLogger("tb_logs", name="TranY")
-trainer = pl.Trainer.from_argparse_args(args, logger=logger)
-model = TranY(
-    **vars(args),
-    encoder_vocab_size=train_ds.intent_vocab_size,
-    decoder_vocab_size=train_ds.action_vocab_size
+trainer = pl.Trainer.from_argparse_args(args, logger=logger, profiler="simple")
+# model = TranY(
+#     **vars(args),
+#     encoder_vocab_size=train_ds.intent_vocab_size,
+#     decoder_vocab_size=train_ds.action_vocab_size
+# )
+# trainer.fit(model, train_loader, val_loader)
+
+model = TranY.load_from_checkpoint('tb_logs/TranY/version_2/checkpoints/epoch=21-step=2617.ckpt')
+sentence = torch.tensor(
+    [val_ds.intent2id[token] for token in "sort array in descending order".split()],
+).unsqueeze(1)
+sentence_length = torch.tensor([5])
+results = model.forward_beam_search(
+    sentence,
+    sentence_length,
+    beam_width=3,
+    result_count=5,
+    action2id=val_ds.action2id,
+    id2action=val_ds.id2action,
+    grammar=grammar,
 )
-trainer.fit(model, train_loader, val_loader)
+from pyrsistent import thaw
+from asdl.convert import mr_to_ast
+from ast import parse, unparse

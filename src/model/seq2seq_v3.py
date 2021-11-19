@@ -1,8 +1,12 @@
+from collections import namedtuple
+from heapq import heappop, heappush
+
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from asdl.recipe import Builder
 from nltk.sem.logic import demoException
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
@@ -107,6 +111,119 @@ class TranY(pl.LightningModule):
             decoder_att_outputs.append(prev_att_output)
         logits = self.predictor(torch.stack(decoder_att_outputs))
         return logits
+
+    def forward_beam_search(
+        self,
+        sentence,
+        sentence_length,
+        beam_width,
+        result_count,
+        action2id,
+        id2action,
+        grammar,
+    ):
+        assert sentence.shape[1] == 1
+        assert sentence_length.shape[0] == 1
+        sentence_mask = (
+            unpack(pack(sentence, sentence_length.cpu(), enforce_sorted=False))[0] > 0
+        )
+        encoder_output, _, encoder_state = self.encoder(sentence, sentence_length)
+
+        Node = namedtuple(
+            "Node",
+            ["score", "next_action", "prev_att_output", "decoder_state", "builder"],
+        )
+        # maintain candidate nodes in a priority queue
+        nodes = []
+        # collect `result_count` decode results
+        results = []
+        # the first action is always SOA
+        init_action = action2id["[SOA]"]
+        init_att_output = torch.zeros(
+            (1, self.hparams.decoder_hidden_d),
+        ).type_as(encoder_output)
+        init_decoder_state = self.init_decoder(encoder_output, encoder_state, 1)
+        init_builder = Builder(grammar)
+        heappush(
+            nodes,
+            Node(0, init_action, init_att_output, init_decoder_state, init_builder),
+        )
+        while len(results) < result_count and len(nodes) > 0:
+            # import pdb; pdb.set_trace()
+            new_nodes = []
+            for node in nodes:
+                score, next_action, prev_att_output, decoder_state, builder = node
+                # ignore nodes that are too long
+                if len(builder.history) > 40:
+                    continue
+                if builder.done:
+                    # MR is done; ignore EOA and whatnot
+                    heappush(results, (score, builder.result))
+                else:
+                    # expand node
+                    decoder_output, decoder_state = self.decoder(
+                        torch.tensor(next_action).type_as(sentence).unsqueeze(0),
+                        prev_att_output,
+                        decoder_state,
+                    )
+                    # TODO: cleanup duplicate code
+                    # (batch_size, n_query = 1, key_d)
+                    query = prev_att_output.unsqueeze(1)
+                    # (batch_size, n_kv, key_d)
+                    key = value = encoder_output.transpose(0, 1)
+                    # (batch_size, n_query = 1, n_kv)
+                    mask = sentence_mask.transpose(0, 1).unsqueeze(1)
+                    # (batch_size, value_d)
+                    att = attention(query, key, value, mask).squeeze(1)
+                    att_output = self.merge_attention(att, decoder_output)
+                    logits = self.predictor(att_output)[0]
+                    # select `beam_width` nodes and add them to the queue
+                    if ("GenToken",) in builder.allowed_actions:
+                        # select a GenToken action
+                        # TODO: actually generate a non-empty token
+                        if ('Reduce',) in builder.allowed_actions:
+                            action = ('Reduce',)
+                        else:
+                            action = ("GenToken", "")
+                        action_id = action2id[action]
+                        new_builder = builder.apply_action(action)
+                        heappush(
+                            new_nodes,
+                            Node(score, action_id, att_output, decoder_state, new_builder),
+                        )
+                    else:
+                        # select an action from allowed actions
+                        action_ids = []
+                        for action in builder.allowed_actions:
+                            try:
+                                action_ids.append(action2id[action])
+                            except KeyError:
+                                # some actions never occurs in the training set; this is fine
+                                pass
+                        action_ids.sort(key=lambda id: logits[id])
+                        # compute scores for all allowed actions
+                        logits = logits.masked_fill(
+                            torch.tensor([i not in action_ids for i in range(len(logits))]),
+                            -1e9,
+                        )
+                        scores = F.log_softmax(logits, dim=-1)
+                        for next_action in action_ids[-beam_width:]:
+                            # add this to the queue
+                            next_builder = builder.apply_action(id2action[next_action])
+                            heappush(
+                                new_nodes,
+                                Node(
+                                    score + scores[next_action],
+                                    next_action,
+                                    att_output,
+                                    decoder_state,
+                                    next_builder,
+                                ),
+                            )
+            # prune new nodes
+            nodes = new_nodes[-beam_width:]
+        return results
+
 
     def training_step(self, batch, batch_idx):
         # train with teacher forcing

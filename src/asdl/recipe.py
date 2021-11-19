@@ -237,11 +237,13 @@ class Builder:
         # Note that if the cardinality of the field is multiple,
         # the path ends with the field name, NOT an index.
         self._stack = v(v("toplevel"))
+        self._history = v()
 
-    def _copywith(self, result, stack):
+    def _copywith(self, result, stack, history):
         builder = Builder(self._grammar)
         builder._result = result
         builder._stack = stack
+        builder._history = history
         return builder
 
     @property
@@ -299,6 +301,10 @@ class Builder:
         if field_cardinality in ["multiple", "optional"]:
             actions.append(("Reduce",))
         return actions
+    
+    @property
+    def history(self):
+        return self._history
 
     def _is_action_allowed(self, action):
         allowed_actions = self.allowed_actions
@@ -327,6 +333,7 @@ class Builder:
         _, _, fields, _ = preprocess_grammar(self._grammar)
         stack = self._stack
         result = self._result
+        history = self._history.append(action)
 
         # pop a path from the stack
         stack, path = stack[:-1], stack[-1]
@@ -347,21 +354,21 @@ class Builder:
             # add paths for the fields of the constructor (in reverse order)
             for field in reversed(fields[action[1]]):
                 stack = stack.append(path + [field.name])
-            return self._copywith(result, stack)
+            return self._copywith(result, stack, history)
         elif action[0] == "Reduce":
             cardinality = self.current_field.cardinality
             if cardinality == "multiple":
                 # close the list (no-op)
-                return self._copywith(result, stack)
+                return self._copywith(result, stack, history)
             elif cardinality == "optional":
                 # set None to an optional field
                 result = result.transform(path, None)
-                return self._copywith(result, stack)
+                return self._copywith(result, stack, history)
             else:
                 assert False
         elif action[0] == "GenToken":
             # add a token to the tree
             result = result.transform(path, action[1])
-            return self._copywith(result, stack)
+            return self._copywith(result, stack, history)
         else:
             assert False
