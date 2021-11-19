@@ -2,6 +2,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from pytorch_lightning import callbacks
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 
 import cfg
@@ -86,7 +88,7 @@ class TranY(pl.LightningModule):
         label = label.to(self.device)
         input_length = input_length.to(self.device)
         label_length = label_length.to(self.device)
-        logits = self(input, label, input_length, label_length)
+        logits = self.model(input, label, input_length, label_length)
         loss = calculate_loss(logits, label)
         errors = calculate_errors(logits, label)
         return {
@@ -127,8 +129,8 @@ class TranY(pl.LightningModule):
         avg_errors = sum(errors) / len(errors)
         self.log_dict(
             {
-                "Train/loss": avg_loss,
-                "Train/errors": avg_errors,
+                "Val/loss": avg_loss,
+                "Val/errors": avg_errors,
             }
         )
 
@@ -137,6 +139,6 @@ class TranY(pl.LightningModule):
 
 
 logger = TensorBoardLogger("tb_logs", name="TranY")
-trainer = pl.Trainer(gpus=1, logger=logger)
+trainer = pl.Trainer(gpus=1, logger=logger, callbacks=[EarlyStopping("Val/loss")])
 model = TranY()
 trainer.fit(model, train_loader, val_loader)
