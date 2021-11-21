@@ -131,7 +131,7 @@ class TranY(pl.LightningModule):
 
         Node = namedtuple(
             "Node",
-            ["score", "next_action", "prev_att_output", "decoder_state", "builder"],
+            ["score", "prev_action", "prev_att_output", "decoder_state", "builder"],
         )
         # current candidate nodes
         nodes = []
@@ -214,13 +214,13 @@ class TranY(pl.LightningModule):
                             -1e9,
                         )
                         scores = F.log_softmax(logits, dim=-1)
-                        for next_action in action_ids[-beam_width:]:
+                        for prev_action in action_ids[-beam_width:]:
                             # add this to the queue
-                            next_builder = builder.apply_action(id2action[next_action])
+                            next_builder = builder.apply_action(id2action[prev_action])
                             new_nodes.append(
                                 Node(
-                                    score + scores[next_action],
-                                    next_action,
+                                    score + scores[prev_action],
+                                    prev_action,
                                     att_output,
                                     decoder_state,
                                     next_builder,
@@ -228,7 +228,7 @@ class TranY(pl.LightningModule):
                             )
             # prune new nodes
             new_nodes.sort(key=lambda node: -node.score)
-            nodes = new_nodes[-beam_width:]
+            nodes = new_nodes[:beam_width]
         return results
 
     def training_step(self, batch, batch_idx):
