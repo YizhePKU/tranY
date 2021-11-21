@@ -1,5 +1,4 @@
 from collections import namedtuple
-from heapq import heappop, heappush
 
 import pytorch_lightning as pl
 import torch
@@ -93,7 +92,8 @@ class TranY(pl.LightningModule):
         prev_att_output = torch.zeros(
             (batch_size, self.hparams.decoder_hidden_d),
         ).type_as(encoder_output)
-        for t in range(max(label_length)):
+        # we generated max(label_length) - 1 actions, skipping SOA
+        for t in range(max(label_length) - 1):
             decoder_output, decoder_state = self.decoder(
                 label[t],
                 prev_att_output,
@@ -133,7 +133,7 @@ class TranY(pl.LightningModule):
             "Node",
             ["score", "next_action", "prev_att_output", "decoder_state", "builder"],
         )
-        # maintain candidate nodes in a priority queue
+        # current candidate nodes
         nodes = []
         # collect `result_count` decode results
         results = []
@@ -144,12 +144,16 @@ class TranY(pl.LightningModule):
         ).type_as(encoder_output)
         init_decoder_state = self.init_decoder(encoder_output, encoder_state, 1)
         init_builder = Builder(grammar)
-        heappush(
-            nodes,
-            Node(0, init_action, init_att_output, init_decoder_state, init_builder),
+        nodes.append(
+            Node(0, init_action, init_att_output, init_decoder_state, init_builder)
         )
         while len(results) < result_count and len(nodes) > 0:
-            # import pdb; pdb.set_trace()
+            print(
+                [
+                    f"Node(score={node.score}, next_action={id2action[node.next_action]})"
+                    for node in nodes
+                ]
+            )
             new_nodes = []
             for node in nodes:
                 score, next_action, prev_att_output, decoder_state, builder = node
@@ -158,7 +162,7 @@ class TranY(pl.LightningModule):
                     continue
                 if builder.done:
                     # MR is done; ignore EOA and whatnot
-                    heappush(results, (score, builder.result))
+                    results.append((score, builder.result))
                 else:
                     # expand node
                     decoder_output, decoder_state = self.decoder(
@@ -181,15 +185,16 @@ class TranY(pl.LightningModule):
                     if ("GenToken",) in builder.allowed_actions:
                         # select a GenToken action
                         # TODO: actually generate a non-empty token
-                        if ('Reduce',) in builder.allowed_actions:
-                            action = ('Reduce',)
+                        if ("Reduce",) in builder.allowed_actions:
+                            action = ("Reduce",)
                         else:
                             action = ("GenToken", "")
                         action_id = action2id[action]
                         new_builder = builder.apply_action(action)
-                        heappush(
-                            new_nodes,
-                            Node(score, action_id, att_output, decoder_state, new_builder),
+                        new_nodes.append(
+                            Node(
+                                score, action_id, att_output, decoder_state, new_builder
+                            ),
                         )
                     else:
                         # select an action from allowed actions
@@ -203,15 +208,16 @@ class TranY(pl.LightningModule):
                         action_ids.sort(key=lambda id: logits[id])
                         # compute scores for all allowed actions
                         logits = logits.masked_fill(
-                            torch.tensor([i not in action_ids for i in range(len(logits))]),
+                            torch.tensor(
+                                [i not in action_ids for i in range(len(logits))]
+                            ),
                             -1e9,
                         )
                         scores = F.log_softmax(logits, dim=-1)
                         for next_action in action_ids[-beam_width:]:
                             # add this to the queue
                             next_builder = builder.apply_action(id2action[next_action])
-                            heappush(
-                                new_nodes,
+                            new_nodes.append(
                                 Node(
                                     score + scores[next_action],
                                     next_action,
@@ -221,18 +227,20 @@ class TranY(pl.LightningModule):
                                 ),
                             )
             # prune new nodes
+            new_nodes.sort(key=lambda node: -node.score)
             nodes = new_nodes[-beam_width:]
         return results
-
 
     def training_step(self, batch, batch_idx):
         # train with teacher forcing
         sentence, label, sentence_length, label_length = batch
+        batch_size = len(sentence_length)
         logits = self.forward_teacher_forcing(
             sentence, label, sentence_length, label_length
         )
-        loss = calculate_loss(logits, label)
-        errors = calculate_errors(logits, label)
+        # skip SOA of the label
+        loss = calculate_loss(logits, label[1:]) / batch_size
+        errors = calculate_errors(logits, label[1:]) / batch_size
         return {
             "loss": loss,
             "errors": errors,
@@ -252,11 +260,12 @@ class TranY(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         sentence, label, sentence_length, label_length = batch
+        batch_size = len(sentence_length)
         logits = self.forward_teacher_forcing(
             sentence, label, sentence_length, label_length
         )
-        loss = calculate_loss(logits, label)
-        errors = calculate_errors(logits, label)
+        loss = calculate_loss(logits, label[1:]) / batch_size
+        errors = calculate_errors(logits, label[1:]) / batch_size
         return {
             "loss": loss,
             "errors": errors,
