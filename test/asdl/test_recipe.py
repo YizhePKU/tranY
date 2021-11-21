@@ -19,6 +19,7 @@ from asdl.recipe import (
 def grammar():
     return parse_asdl("src/asdl/Python.asdl")
 
+
 def test_preprocess_grammar(grammar):
     type2constr, constr2type, fields, name2fields = preprocess_grammar(grammar)
     assert type2constr["mod"] == ["Module", "Interactive", "Expression", "FunctionType"]
@@ -349,8 +350,7 @@ def test_builder_assignment(grammar):
 def test_builder_empty(grammar):
     builder = Builder(grammar)
     assert builder.done == False
-    with pytest.raises(ValueError):
-        builder.result
+    assert builder.result is None
 
 
 def test_builder_wrong_type(grammar):

@@ -248,15 +248,11 @@ class Builder:
 
     @property
     def result(self):
-        """Return the constructed MR so far.
-
-        Raises:
-            ValueError if the builder is empty.
-        """
+        """Return the constructed MR so far, or None if the builder is empty."""
         if "toplevel" in self._result:
             return self._result["toplevel"]
         else:
-            raise ValueError("Cannot get the result of an empty builder")
+            return None
 
     @property
     def done(self):
@@ -301,7 +297,7 @@ class Builder:
         if field_cardinality in ["multiple", "optional"]:
             actions.append(("Reduce",))
         return actions
-    
+
     @property
     def history(self):
         return self._history
