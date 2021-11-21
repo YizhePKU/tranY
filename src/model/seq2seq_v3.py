@@ -148,15 +148,9 @@ class TranY(pl.LightningModule):
             Node(0, init_action, init_att_output, init_decoder_state, init_builder)
         )
         while len(results) < result_count and len(nodes) > 0:
-            print(
-                [
-                    f"Node(score={node.score}, next_action={id2action[node.next_action]})"
-                    for node in nodes
-                ]
-            )
             new_nodes = []
             for node in nodes:
-                score, next_action, prev_att_output, decoder_state, builder = node
+                score, prev_action, prev_att_output, decoder_state, builder = node
                 # ignore nodes that are too long
                 if len(builder.history) > 40:
                     continue
@@ -166,7 +160,7 @@ class TranY(pl.LightningModule):
                 else:
                     # expand node
                     decoder_output, decoder_state = self.decoder(
-                        torch.tensor(next_action).type_as(sentence).unsqueeze(0),
+                        torch.tensor(prev_action).type_as(sentence).unsqueeze(0),
                         prev_att_output,
                         decoder_state,
                     )
@@ -181,51 +175,41 @@ class TranY(pl.LightningModule):
                     att = attention(query, key, value, mask).squeeze(1)
                     att_output = self.merge_attention(att, decoder_output)
                     logits = self.predictor(att_output)[0]
-                    # select `beam_width` nodes and add them to the queue
-                    if ("GenToken",) in builder.allowed_actions:
-                        # select a GenToken action
-                        # TODO: actually generate a non-empty token
-                        if ("Reduce",) in builder.allowed_actions:
-                            action = ("Reduce",)
+
+                    # filter allowed actions with grammar
+                    action_ids = []
+                    for action in builder.allowed_actions:
+                        if action == ("GenToken",):
+                            action_ids += [
+                                i
+                                for i in range(len(logits))
+                                if id2action[i][0] == "GenToken"
+                            ]
                         else:
-                            action = ("GenToken", "")
-                        action_id = action2id[action]
-                        new_builder = builder.apply_action(action)
-                        new_nodes.append(
-                            Node(
-                                score, action_id, att_output, decoder_state, new_builder
-                            ),
-                        )
-                    else:
-                        # select an action from allowed actions
-                        action_ids = []
-                        for action in builder.allowed_actions:
                             try:
                                 action_ids.append(action2id[action])
                             except KeyError:
                                 # some actions never occurs in the training set; this is fine
                                 pass
-                        action_ids.sort(key=lambda id: logits[id])
-                        # compute scores for all allowed actions
-                        logits = logits.masked_fill(
-                            torch.tensor(
-                                [i not in action_ids for i in range(len(logits))]
+                    action_ids.sort(key=lambda id: logits[id])
+                    # compute scores for all allowed actions
+                    logits = logits.masked_fill(
+                        torch.tensor([i not in action_ids for i in range(len(logits))]),
+                        -1e9,
+                    )
+                    scores = F.log_softmax(logits, dim=-1)
+                    for prev_action in action_ids[-beam_width:]:
+                        # add this to the queue
+                        next_builder = builder.apply_action(id2action[prev_action])
+                        new_nodes.append(
+                            Node(
+                                score + scores[prev_action],
+                                prev_action,
+                                att_output,
+                                decoder_state,
+                                next_builder,
                             ),
-                            -1e9,
                         )
-                        scores = F.log_softmax(logits, dim=-1)
-                        for prev_action in action_ids[-beam_width:]:
-                            # add this to the queue
-                            next_builder = builder.apply_action(id2action[prev_action])
-                            new_nodes.append(
-                                Node(
-                                    score + scores[prev_action],
-                                    prev_action,
-                                    att_output,
-                                    decoder_state,
-                                    next_builder,
-                                ),
-                            )
             # prune new nodes
             new_nodes.sort(key=lambda node: -node.score)
             nodes = new_nodes[:beam_width]
