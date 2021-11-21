@@ -63,27 +63,9 @@ val_loader = load(val_ds, args.batch_size)
 
 logger = TensorBoardLogger("tb_logs", name="TranY")
 trainer = pl.Trainer.from_argparse_args(args, logger=logger, profiler="simple")
-# model = TranY(
-#     **vars(args),
-#     encoder_vocab_size=train_ds.intent_vocab_size,
-#     decoder_vocab_size=train_ds.action_vocab_size
-# )
-# trainer.fit(model, train_loader, val_loader)
-
-model = TranY.load_from_checkpoint('tb_logs/TranY/version_2/checkpoints/epoch=21-step=2617.ckpt')
-sentence = torch.tensor(
-    [val_ds.intent2id[token] for token in "sort array in descending order".split()],
-).unsqueeze(1)
-sentence_length = torch.tensor([5])
-results = model.forward_beam_search(
-    sentence,
-    sentence_length,
-    beam_width=3,
-    result_count=5,
-    action2id=val_ds.action2id,
-    id2action=val_ds.id2action,
-    grammar=grammar,
+model = TranY(
+    **vars(args),
+    encoder_vocab_size=train_ds.intent_vocab_size,
+    decoder_vocab_size=train_ds.action_vocab_size
 )
-from pyrsistent import thaw
-from asdl.convert import mr_to_ast
-from ast import parse, unparse
+trainer.fit(model, train_loader, val_loader)
