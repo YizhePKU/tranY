@@ -4,7 +4,6 @@ import random
 import re
 from copy import deepcopy
 
-import cfg
 import nltk
 import torch
 import torch.nn.functional as F
@@ -16,6 +15,7 @@ from utils.flatten import flatten
 from data.preprocess import preprocess_example
 from data.tokenizer import Vocab
 
+MAX_RECIPE_LEN = 100
 
 class ConalaDataset(torch.utils.data.Dataset):
     """Load the CoNaLa dataset.
@@ -131,7 +131,7 @@ class ConalaDataset(torch.utils.data.Dataset):
             recipe = ["[SOA]"] + self.recipes[index] + ["[EOA]"]
             label = torch.tensor(self.convert_action_ids(recipe), dtype=torch.long)
             label = F.pad(
-                label, (self.action_vocab.pad_id, cfg.max_recipe_len - len(recipe))
+                label, (self.action_vocab.pad_id, MAX_RECIPE_LEN - len(recipe))
             )
             self.labels.append(label)
 
