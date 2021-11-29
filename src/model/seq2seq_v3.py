@@ -214,7 +214,7 @@ class TranY(pl.LightningModule):
             new_nodes.sort(key=lambda node: node.score, reverse=True)
             nodes = new_nodes[:beam_width]
         results.sort(key=lambda result: result[0], reverse=True)
-        return results
+        return results[:result_count]
 
     def training_step(self, batch, batch_idx):
         # train with teacher forcing
