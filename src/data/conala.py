@@ -83,7 +83,7 @@ class ConalaDataset(torch.utils.data.Dataset):
         if shuffle:
             processed_data = random.sample(processed_data, len(processed_data))
         new_len = len(processed_data)
-        print(f"Passed {orig_len - new_len} invalid code.")
+        # print(f"Passed {orig_len - new_len} invalid code.")
         self.c_intents = [
             dic["canonical_intent"] for dic in processed_data
         ]  # not tokenized, str
