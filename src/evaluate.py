@@ -63,18 +63,20 @@ dev_ds = ConalaDataset(
 
 dev_dl = torch.utils.data.DataLoader(dev_ds, batch_size=64, collate_fn=collate_fn)
 model = TranY.load_from_checkpoint(
-    "tb_logs/TranY/version_10/checkpoints/epoch=38-step=1169.ckpt"
+    "tb_logs/TranY/post_conala_v2_early_stop/checkpoints/epoch=38-step=1169.ckpt"
 )
 model.eval()
 
 # TODO: cleanup
 scores = []
 for idx in range(len(dev_ds)):
-    intent, snippet = dev_ds.intent_snippets[idx]
     intent1, snippet1, slot = dev_ds.intent_snippet_slots[idx]
+    snippet = unprocess_snippet(snippet1, slot)
     print()
-    print(f"intent: {intent}")
+    print(f"intent1: {intent1}")
+    print(f"snippet1: {snippet1}")
     print(f"snippet: {snippet}")
+    print(f"slot: {slot}")
 
     sentence = dev_ds.sentences[idx].unsqueeze(1)
     sentence_length = torch.tensor([len(sentence)])
