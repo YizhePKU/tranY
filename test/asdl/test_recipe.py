@@ -1,7 +1,7 @@
 import ast
 
 import pytest
-from data.conala import ConalaDataset
+from data.conala_v2 import ConalaDataset
 
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
@@ -205,11 +205,14 @@ def test_recipe_to_mr_dfs_list(grammar):
 
 
 def test_recipe_dfs_roundtrip(grammar):
-    special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
     ds = ConalaDataset(
-        "data/conala-train.json", grammar=grammar, special_tokens=special_tokens
+        "data/conala-train.json",
+        max_sentence_len=40,
+        max_recipe_len=100,
+        intent_freq_cutoff=2,
+        action_freq_cutoff=2,
     )
-    for intent, snippet in zip(ds.intents, ds.snippets):
+    for intent, snippet in ds.intent_snippets:
         pyast = ast.parse(snippet)
         mr = ast_to_mr(pyast)
         recipe = mr_to_recipe_dfs(mr, grammar)

@@ -2,70 +2,54 @@ from argparse import ArgumentParser
 
 import pytorch_lightning as pl
 import torch
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from asdl.parser import parse as parse_asdl
-from data.conala import ConalaDataset
+from data.conala_v2 import ConalaDataset
 from model.seq2seq_v3 import TranY
-
-
-def load(ds, batch_size, shuffle=False):
-    """Wrap a Dataset in a DataLoader."""
-
-    def collate_fn(data):
-        sentence = torch.nn.utils.rnn.pad_sequence([input for input, _ in data])
-        sentence_length = [len(input) for input, _ in data]
-        label = torch.nn.utils.rnn.pad_sequence([label for _, label in data])
-        label_length = [len(label) for _, label in data]
-        return (
-            sentence,
-            label,
-            torch.tensor(sentence_length),
-            torch.tensor(label_length),
-        )
-
-    return torch.utils.data.DataLoader(
-        ds,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        collate_fn=collate_fn,
-    )
-
 
 parser = ArgumentParser()
 parser.add_argument("--seed", type=int, default=47)
-parser.add_argument("--batch_size", type=int, default=16)
+parser.add_argument("--batch_size", type=int, default=64)
 parser = TranY.add_argparse_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
-
+parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-grammar = parse_asdl("src/asdl/Python.asdl")
-special_tokens = ["[PAD]", "[UNK]", "[SOS]", "[EOS]", "[SOA]", "[EOA]"]
-
-train_ds = ConalaDataset(
-    "data/conala-train.json",
-    grammar=grammar,
-    special_tokens=special_tokens,
-    shuffle=False,
-)
-val_ds = ConalaDataset(
+train_ds = ConalaDataset("data/conala-train.json", **vars(args))
+dev_ds = ConalaDataset(
     "data/conala-dev.json",
-    grammar=grammar,
-    special_tokens=special_tokens,
-    action_vocab=train_ds.action_vocab,
     intent_vocab=train_ds.intent_vocab,
-    shuffle=False,
+    action_vocab=train_ds.action_vocab,
+    **vars(args),
 )
-train_loader = load(train_ds, args.batch_size)
-val_loader = load(val_ds, args.batch_size)
+
+def collate_fn(data):
+    sentence_tensor = torch.nn.utils.rnn.pad_sequence([sentence for sentence, _ in data])
+    sentence_length = [len(sentence) for sentence, _ in data]
+    recipe_tensor = torch.nn.utils.rnn.pad_sequence([recipe for _, recipe in data])
+    recipe_length = [len(recipe) for _, recipe in data]
+    return (
+        sentence_tensor,
+        recipe_tensor,
+        torch.tensor(sentence_length),
+        torch.tensor(recipe_length),
+    )
+
+train_dl = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, collate_fn=collate_fn)
+dev_dl = torch.utils.data.DataLoader(dev_ds, batch_size=args.batch_size, collate_fn=collate_fn)
 
 logger = TensorBoardLogger("tb_logs", name="TranY")
-trainer = pl.Trainer.from_argparse_args(args, logger=logger, profiler="simple")
+trainer = pl.Trainer.from_argparse_args(
+    args,
+    # logger=logger,
+    profiler="simple",
+    callbacks=[EarlyStopping(monitor="Val/loss")],
+)
 model = TranY(
     **vars(args),
-    encoder_vocab_size=train_ds.intent_vocab_size,
-    decoder_vocab_size=train_ds.action_vocab_size
+    encoder_vocab_size=len(train_ds.intent_vocab),
+    decoder_vocab_size=len(train_ds.action_vocab),
 )
-trainer.fit(model, train_loader, val_loader)
+trainer.fit(model, train_dl, dev_dl)

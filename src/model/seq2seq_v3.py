@@ -213,6 +213,7 @@ class TranY(pl.LightningModule):
             # prune new nodes
             new_nodes.sort(key=lambda node: node.score, reverse=True)
             nodes = new_nodes[:beam_width]
+
         results.sort(key=lambda result: result[0], reverse=True)
         return results[:result_count]
 

@@ -35,7 +35,7 @@ def mr_to_ast(mr):
         kwargs = {}
         if issubclass(constructor, ast.expr) or issubclass(constructor, ast.stmt):
             # add fake lineno
-            kwargs['lineno'] = 1
+            kwargs["lineno"] = 1
         for field, value in mr.items():
             if field != "_tag":
                 if isinstance(value, list):
