@@ -118,8 +118,7 @@ class TranY(pl.LightningModule):
         sentence_length,
         beam_width,
         result_count,
-        action2id,
-        id2action,
+        action_vocab,
         grammar,
     ):
         assert sentence.shape[1] == 1
@@ -138,7 +137,7 @@ class TranY(pl.LightningModule):
         # collect `result_count` decode results
         results = []
         # the first action is always SOA
-        init_action = action2id["[SOA]"]
+        init_action = action_vocab.word2id("<soa>")
         init_att_output = torch.zeros(
             (1, self.hparams.decoder_hidden_d),
         ).type_as(encoder_output)
@@ -183,14 +182,14 @@ class TranY(pl.LightningModule):
                             action_ids += [
                                 i
                                 for i in range(len(logits))
-                                if id2action[i][0] == "GenToken"
+                                if action_vocab.id2word(i)[0] == "GenToken"
                             ]
                         else:
-                            try:
-                                action_ids.append(action2id[action])
-                            except KeyError:
-                                # some actions never occurs in the training set; this is fine
-                                pass
+                            # some actions never appear in the training set
+                            # this causes <unk> to appear in action_ids
+                            action_id = action_vocab.word2id(action)
+                            if action_id != action_vocab.word2id("<unk>"):
+                                action_ids.append(action_id)
                     action_ids.sort(key=lambda id: logits[id])
                     # compute scores for all allowed actions
                     logits = logits.masked_fill(
@@ -200,7 +199,9 @@ class TranY(pl.LightningModule):
                     scores = F.log_softmax(logits, dim=-1)
                     for prev_action in action_ids[-beam_width:]:
                         # add this to the queue
-                        next_builder = builder.apply_action(id2action[prev_action])
+                        next_builder = builder.apply_action(
+                            action_vocab.id2word(prev_action)
+                        )
                         new_nodes.append(
                             Node(
                                 score + scores[prev_action],

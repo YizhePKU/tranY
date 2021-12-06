@@ -43,7 +43,7 @@ dev_dl = torch.utils.data.DataLoader(dev_ds, batch_size=args.batch_size, collate
 logger = TensorBoardLogger("tb_logs", name="TranY")
 trainer = pl.Trainer.from_argparse_args(
     args,
-    # logger=logger,
+    logger=logger,
     profiler="simple",
     callbacks=[EarlyStopping(monitor="Val/loss")],
 )

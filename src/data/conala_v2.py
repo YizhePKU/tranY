@@ -137,7 +137,7 @@ class ConalaDataset:
     ):
         grammar = parse_asdl("src/asdl/Python.asdl")
         self.intent_snippets = load_conala_from_json(filepath)
-        intent_snippet_slots = process_and_filter(self.intent_snippets)
+        self.intent_snippet_slots = process_and_filter(self.intent_snippets)
 
         if intent_vocab:
             self.intent_vocab = intent_vocab
@@ -145,7 +145,7 @@ class ConalaDataset:
             # about 800 words (out of 1500) occur twice or more in the training set
             corpus = [
                 token
-                for intent, _, _ in intent_snippet_slots
+                for intent, _, _ in self.intent_snippet_slots
                 for token in tokenize_intent(intent)
             ]
             self.intent_vocab = Vocab(
@@ -157,21 +157,28 @@ class ConalaDataset:
         else:
             # about 700 actions (out of 1500) occur twice or more in the training set
             mrs = [
-                ast_to_mr(ast.parse(snippet)) for _, snippet, _ in intent_snippet_slots
+                ast_to_mr(ast.parse(snippet))
+                for _, snippet, _ in self.intent_snippet_slots
             ]
             action_corpus = [
                 action for mr in mrs for action in mr_to_recipe_dfs(mr, grammar)
             ]
             self.action_vocab = Vocab(
-                action_corpus, freq_cutoff=action_freq_cutoff, special_words=["<soa>", "<eoa>"]
+                action_corpus,
+                freq_cutoff=action_freq_cutoff,
+                special_words=["<soa>", "<eoa>"],
             )
 
         self.sentences = []
         self.recipes = []
-        for intent, snippet, _ in intent_snippet_slots:
+        for intent, snippet, _ in self.intent_snippet_slots:
             tokens = tokenize_intent(intent)
-            token_ids = torch.tensor([self.intent_vocab.word2id(token) for token in tokens])
+            tokens = ["<sos>"] + tokens + ["<eos>"]
+            token_ids = torch.tensor(
+                [self.intent_vocab.word2id(token) for token in tokens]
+            )
             actions = mr_to_recipe_dfs(ast_to_mr(ast.parse(snippet)), grammar)
+            actions = ["<soa>"] + actions + ["<eoa>"]
             action_ids = torch.tensor(
                 [self.action_vocab.word2id(action) for action in actions]
             )
