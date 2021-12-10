@@ -13,14 +13,14 @@ Currently only DFS-based encoding is implemented (as described in the tranX pape
 but other encodings are also possible.
 """
 
-from collections import OrderedDict, deque, namedtuple
+from collections import deque, namedtuple
 from copy import deepcopy
 from functools import cache
 
-from pyrsistent import get_in, m, pmap, pvector, thaw, v
-
 import asdl.parser
 
+# Represents a field of a constructor.
+# "cardinality" is one of "single", "multiple", or "optional"
 Field = namedtuple("Field", ["type", "name", "cardinality"])
 
 
@@ -34,14 +34,10 @@ def preprocess_grammar(grammar):
         grammar: a grammar instance.
 
     Returns:
-        type2constr (dict[str,list[str]]): list constructors of a given type.
-        constr2type (dict[str,str]): lookup the type of a constructor.
-        fields (dict[str,list[Field]]): list fields of a constructor in the order
-            they are declared in the grammar, where each field is a namedtuple of
-            (type, name, cardinality). cardinality can be one of 'single',
-            'multiple', or 'optional'.
-        name2field (dict[str,dict[str,Field]]): same infomation as fields, but stored
-            as a dict keyed by field name.
+        type2constr (dict[str,list[str]]): a list of names of constructors of a given type.
+        constr2type (dict[str,str]): name of the type of a constructor.
+        fields (dict[str,list[Field]]): a list of fields of a constructor in declaration order.
+        name2field (dict[str,dict[str,Field]]): a dict of fields of a constructor, keyed by field name.
     """
     type2constr = {}
     constr2type = {}
@@ -81,14 +77,19 @@ def preprocess_grammar(grammar):
     return type2constr, constr2type, fields, name2field
 
 
-def _generator_to_list_function(f):
-    def _inner(*args, **kwargs):
-        return list(f(*args, **kwargs))
+def _generator_to_list_decorator(fn):
+    """Convert a generator function to a function that returns a list.
 
-    return _inner
+    This enables us to use the Python `yield` syntax to create a list.
+    """
+
+    def inner(*args, **kwargs):
+        return list(fn(*args, **kwargs))
+
+    return inner
 
 
-@_generator_to_list_function
+@_generator_to_list_decorator
 def mr_to_recipe_dfs(mr, grammar):
     """Convert MR to a recipe in depth-first order, as described in the tranX paper.
 
@@ -98,7 +99,7 @@ def mr_to_recipe_dfs(mr, grammar):
 
     Args:
         mr: MR to convert from
-        grammar: reference grammar
+        grammar: an ASDL grammar instance
 
     Returns:
         a recipe, the conversion result
@@ -130,7 +131,7 @@ def recipe_to_mr_dfs(recipe, grammar):
 
     Args:
         recipe: recipe to convert from
-        grammar: reference grammar
+        grammar: an ASDL grammar instance
 
     Returns:
         the reconstructed MR
