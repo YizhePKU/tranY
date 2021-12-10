@@ -142,7 +142,6 @@ class ConalaDataset:
         if intent_vocab:
             self.intent_vocab = intent_vocab
         else:
-            # about 800 words (out of 1500) occur twice or more in the training set
             corpus = [
                 token
                 for intent, _, _ in self.intent_snippet_slots
@@ -151,11 +150,11 @@ class ConalaDataset:
             self.intent_vocab = Vocab(
                 corpus, freq_cutoff=intent_freq_cutoff, special_words=["<sos>", "<eos>"]
             )
+            print(f"Intent Vocab: {len(self.intent_vocab)}/{len(set(corpus))}")
 
         if action_vocab:
             self.action_vocab = action_vocab
         else:
-            # about 700 actions (out of 1500) occur twice or more in the training set
             mrs = [
                 ast_to_mr(ast.parse(snippet))
                 for _, snippet, _ in self.intent_snippet_slots
@@ -168,6 +167,7 @@ class ConalaDataset:
                 freq_cutoff=action_freq_cutoff,
                 special_words=["<soa>", "<eoa>"],
             )
+            print(f"Action Vocab: {len(self.action_vocab)}/{len(set(action_corpus))}")
 
         self.sentences = []
         self.recipes = []
