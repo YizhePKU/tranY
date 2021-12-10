@@ -1,3 +1,5 @@
+all: split-train-dev download-punkt
+
 split-train-dev:
 	mkdir -p data/interim
 	unzip data/raw/conala.zip
@@ -8,7 +10,7 @@ split-train-dev:
 
 download-punkt:
 	mkdir -p ~/nltk_data/tokenizers
-	cd ~/nltk_data/tokenizers
-	wget https://f002.backblazeb2.com/file/sunyizhe/punkt.zip
-	unzip punkt.zip
-	rm punkt.zip
+	cd ~/nltk_data/tokenizers; \
+	  wget https://f002.backblazeb2.com/file/sunyizhe/punkt.zip; \
+	  unzip punkt.zip; \
+	  rm punkt.zip
