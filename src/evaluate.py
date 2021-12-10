@@ -47,12 +47,16 @@ def collate_fn(data):
 parser = ArgumentParser()
 parser.add_argument("--seed", type=int, default=47)
 parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--use_simplified_grammar", type=bool, default=True)
 parser = TranY.add_argparse_args(parser)
 parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-grammar = parse_asdl("src/asdl/python3_simplified.asdl")
+if args.use_simplified_grammar:
+    grammar = parse_asdl("src/asdl/python3_simplified.asdl")
+else:
+    grammar = parse_asdl("src/asdl/python3.asdl")
 
 train_ds = ConalaDataset("data/conala-train.json", grammar, **vars(args))
 dev_ds = ConalaDataset(
@@ -62,17 +66,24 @@ dev_ds = ConalaDataset(
     action_vocab=train_ds.action_vocab,
     **vars(args),
 )
+test_ds = ConalaDataset(
+    "data/conala-test.json",
+    grammar,
+    intent_vocab=train_ds.intent_vocab,
+    action_vocab=train_ds.action_vocab,
+    **vars(args),
+)
 
-dev_dl = torch.utils.data.DataLoader(dev_ds, batch_size=64, collate_fn=collate_fn)
 model = TranY.load_from_checkpoint(
-    "tb_logs/TranY/simplified_asdl_early_stop/checkpoints/epoch=25-step=779.ckpt"
+    "tb_logs/TranY/simplified_asdl_early_stop_2/checkpoints/epoch=25-step=779.ckpt"
 )
 model.eval()
 
 # TODO: cleanup
 scores = []
-for idx in range(len(dev_ds)):
-    intent1, snippet1, slot = dev_ds.intent_snippet_slots[idx]
+ds = test_ds
+for idx in range(len(ds)):
+    intent1, snippet1, slot = ds.intent_snippet_slots[idx]
     snippet = unprocess_snippet(snippet1, slot)
     print()
     print(f"intent1: {intent1}")
@@ -80,7 +91,7 @@ for idx in range(len(dev_ds)):
     print(f"snippet: {snippet}")
     print(f"slot: {slot}")
 
-    sentence = dev_ds.sentences[idx].unsqueeze(1)
+    sentence = ds.sentences[idx].unsqueeze(1)
     sentence_length = torch.tensor([len(sentence)])
 
     results = model.forward_beam_search(

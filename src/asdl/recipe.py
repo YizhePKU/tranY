@@ -110,6 +110,8 @@ def mr_to_recipe_dfs(mr, grammar):
         tag_name = mr["_tag"]
         yield ("ApplyConstr", tag_name)
         for _, field, card in fields[tag_name]:
+            if field in ("lineno", "col_offset", "ctx"):
+                continue
             if card == "single":
                 yield from mr_to_recipe_dfs(mr[field], grammar)
             elif card == "multiple":

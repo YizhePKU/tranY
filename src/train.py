@@ -12,13 +12,17 @@ from model.seq2seq_v3 import TranY
 parser = ArgumentParser()
 parser.add_argument("--seed", type=int, default=47)
 parser.add_argument("--batch_size", type=int, default=64)
+parser.add_argument("--use_simplified_grammar", type=bool, default=True)
 parser = TranY.add_argparse_args(parser)
 parser = pl.Trainer.add_argparse_args(parser)
 parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-grammar = parse_asdl("src/asdl/python3_simplified.asdl")
+if args.use_simplified_grammar:
+    grammar = parse_asdl("src/asdl/python3_simplified.asdl")
+else:
+    grammar = parse_asdl("src/asdl/python3.asdl")
 
 train_ds = ConalaDataset("data/conala-train.json", grammar, **vars(args))
 dev_ds = ConalaDataset(
