@@ -5,7 +5,7 @@
 
 module Python
 {
-    mod = Module(stmt* body, type_ignore* type_ignores)
+    mod = Module(stmt* body)
         | Interactive(stmt* body)
         | Expression(expr body)
         | FunctionType(expr* argtypes, expr returns)
