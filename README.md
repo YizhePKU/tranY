@@ -10,7 +10,7 @@
 git clone git@github.com:YizhePKU/tranY.git
 ```
 
-2. Install dependencies.
+2. Install dependencies. Make sure the environment variable `PYTHONPATH` is not set in this step.
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -39,6 +39,12 @@ sys.path.append("src")
 make split-train-dev
 ```
 
+5. Download nltk data for tokenizer.
+
+```bash
+make download-punkt
+```
+
 5. (Optional) run the test suite.
 
 ```bash
@@ -48,15 +54,13 @@ pytest
 6. Train the model.
 
 ```
-python3 src/main.py
+python3 src/train.py
 ```
 
  Make sure your working directory is at the project root (instead of `src/`).
 
-## Todos
+7. Evaluate the model. The model path is currently hardcoded into `src/evaluate.py`.
 
-- [x] save checkpoints of trained model
-- [x] add parent feeding to the model
-- [ ] add attention to the model
-- [ ] evaluate using BLEU
-- [ ] add Transformer as an alternative to LSTM
+```
+python3 src/evaluate.py
+```
