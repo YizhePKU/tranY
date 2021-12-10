@@ -242,7 +242,9 @@ class TranY(pl.LightningModule):
             {
                 "Train/loss": avg_loss,
                 "Train/errors": avg_errors,
-            }
+            },
+            # Not sure how this batch_size means, but it should only affact Tensorboard
+            batch_size=1,
         )
 
     def validation_step(self, batch, batch_idx):
@@ -257,7 +259,7 @@ class TranY(pl.LightningModule):
             "loss": loss,
             "errors": errors,
         }
-
+    
     def validation_epoch_end(self, outputs):
         loss = [d["loss"] for d in outputs]
         avg_loss = sum(loss) / len(loss)
@@ -267,7 +269,9 @@ class TranY(pl.LightningModule):
             {
                 "Val/loss": avg_loss,
                 "Val/errors": avg_errors,
-            }
+            },
+            # Not sure how this batch_size means, but it should only affact Tensorboard
+            batch_size=1,
         )
 
 
