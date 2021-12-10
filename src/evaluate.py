@@ -53,7 +53,7 @@ parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-grammar = parse_asdl("src/asdl/python3.asdl")
+grammar = parse_asdl("src/asdl/python3_simplified.asdl")
 
 train_ds = ConalaDataset("data/conala-train.json", grammar, **vars(args))
 dev_ds = ConalaDataset(

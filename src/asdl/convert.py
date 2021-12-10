@@ -16,6 +16,8 @@ def ast_to_mr(root):
     if isinstance(root, ast.AST):
         mr = {"_tag": root.__class__.__name__}
         for field in root._fields:
+            if field in ("lineno", "col_offset", "ctx"):
+                continue
             value = getattr(root, field)
             if value is None:
                 mr[field] = None

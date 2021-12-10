@@ -79,12 +79,12 @@ module Python
          | Constant(constant value, string? kind)
 
          -- the following expression can appear in assignment context
-         | Attribute(expr value, identifier attr, expr_context ctx)
-         | Subscript(expr value, expr slice, expr_context ctx)
-         | Starred(expr value, expr_context ctx)
-         | Name(identifier id, expr_context ctx)
-         | List(expr* elts, expr_context ctx)
-         | Tuple(expr* elts, expr_context ctx)
+         | Attribute(expr value, identifier attr)
+         | Subscript(expr value, expr slice)
+         | Starred(expr value)
+         | Name(identifier id)
+         | List(expr* elts)
+         | Tuple(expr* elts)
 
          -- can appear only in Subscript
          | Slice(expr? lower, expr? upper, expr? step)

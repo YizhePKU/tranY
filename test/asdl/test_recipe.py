@@ -5,19 +5,13 @@ from data.conala_v2 import ConalaDataset
 
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
-from asdl.recipe import (
-    Builder,
-    int2str,
-    mr_to_recipe_dfs,
-    preprocess_grammar,
-    recipe_to_mr_dfs,
-    str2int,
-)
+from asdl.recipe import (Builder, int2str, mr_to_recipe_dfs,
+                         preprocess_grammar, recipe_to_mr_dfs, str2int)
 
 
 @pytest.fixture
 def grammar():
-    return parse_asdl("src/asdl/python3.asdl")
+    return parse_asdl("src/asdl/python3_simplified.asdl")
 
 
 def test_preprocess_grammar(grammar):
@@ -44,13 +38,11 @@ def test_mr_to_recipe_dfs_variable(grammar):
     mr = {
         "_tag": "Name",
         "id": "x",
-        "ctx": {"_tag": "Store"},
     }
     recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
     ]
 
 
@@ -61,7 +53,6 @@ def test_mr_to_recipe_dfs_assignment(grammar):
             {
                 "_tag": "Name",
                 "id": "x",
-                "ctx": {"_tag": "Store"},
             }
         ],
         "value": {
@@ -76,7 +67,6 @@ def test_mr_to_recipe_dfs_assignment(grammar):
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
         ("Reduce",),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -96,9 +86,7 @@ def test_mr_to_recipe_dfs(grammar):
         ("ApplyConstr", "Attribute"),
         ("ApplyConstr", "Name"),
         ("GenToken", "panda"),
-        ("ApplyConstr", "Load"),  # Name.ctx, not in paper
         ("GenToken", "read_csv"),
-        ("ApplyConstr", "Load"),  # Name.ctx, not in paper
         ("ApplyConstr", "Constant"),  # "Str" instead of "Constant" in paper
         ("GenToken", "file.csv"),
         # ("GenToken", "</f>"), # in paper
@@ -117,13 +105,11 @@ def test_recipe_to_mr_dfs_variable(grammar):
     recipe = [
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
     ]
     mr = recipe_to_mr_dfs(recipe, grammar)
     assert mr == {
         "_tag": "Name",
         "id": "x",
-        "ctx": {"_tag": "Store"},
     }
 
 
@@ -132,7 +118,6 @@ def test_recipe_to_mr_dfs_assignment(grammar):
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
         ("Reduce",),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -146,7 +131,6 @@ def test_recipe_to_mr_dfs_assignment(grammar):
             {
                 "_tag": "Name",
                 "id": "x",
-                "ctx": {"_tag": "Store"},
             }
         ],
         "value": {
@@ -165,7 +149,6 @@ def test_mr_to_recipe_dfs_list(grammar):
             {"_tag": "Constant", "value": 1, "kind": None},
             {"_tag": "Constant", "value": 2, "kind": None},
         ],
-        "ctx": {"_tag": "Load"},
     }
     recipe = mr_to_recipe_dfs(mr, grammar)
     assert recipe == [
@@ -177,7 +160,6 @@ def test_mr_to_recipe_dfs_list(grammar):
         ("GenToken", 2),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
 
 
@@ -191,7 +173,6 @@ def test_recipe_to_mr_dfs_list(grammar):
         ("GenToken", 2),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
     mr = recipe_to_mr_dfs(recipe, grammar)
     assert mr == {
@@ -200,7 +181,6 @@ def test_recipe_to_mr_dfs_list(grammar):
             {"_tag": "Constant", "value": 1, "kind": None},
             {"_tag": "Constant", "value": 2, "kind": None},
         ],
-        "ctx": {"_tag": "Load"},
     }
 
 
@@ -231,7 +211,6 @@ def test_int2str():
         ("GenToken", 2),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
     new_recipe = int2str(recipe)
     assert new_recipe == [
@@ -243,7 +222,6 @@ def test_int2str():
         ("GenToken", "<int>2"),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
 
 
@@ -257,7 +235,6 @@ def test_str2int():
         ("GenToken", "<int>2"),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
     new_recipe = str2int(recipe)
     assert new_recipe == [
@@ -269,7 +246,6 @@ def test_str2int():
         ("GenToken", 2),
         ("Reduce",),
         ("Reduce",),
-        ("ApplyConstr", "Load"),
     ]
 
 
@@ -279,7 +255,6 @@ def test_builder_simple(grammar):
         ("ApplyConstr", "Expression"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
     ]
 
     builder0 = builder.apply_action(recipe[0])
@@ -294,24 +269,12 @@ def test_builder_simple(grammar):
         "body": {"_tag": "Name", "id": "x"},
     }
 
-    builder3 = builder2.apply_action(recipe[3])
-    assert builder3.result == {
-        "_tag": "Expression",
-        "body": {
-            "_tag": "Name",
-            "id": "x",
-            "ctx": {"_tag": "Store"},
-        },
-    }
-
-
 def test_builder_assignment(grammar):
     recipe = [
         ("ApplyConstr", "Module"),
         ("ApplyConstr", "Assign"),
         ("ApplyConstr", "Name"),
         ("GenToken", "x"),
-        ("ApplyConstr", "Store"),
         ("Reduce",),
         ("ApplyConstr", "Constant"),
         ("GenToken", 1),
@@ -336,7 +299,6 @@ def test_builder_assignment(grammar):
                     {
                         "_tag": "Name",
                         "id": "x",
-                        "ctx": {"_tag": "Store"},
                     }
                 ],
                 "value": {
