@@ -17,7 +17,7 @@ from collections import OrderedDict, deque, namedtuple
 from copy import deepcopy
 from functools import cache
 
-from pyrsistent import get_in, m, pmap, pvector, v
+from pyrsistent import get_in, m, pmap, pvector, thaw, v
 
 import asdl.parser
 
@@ -179,42 +179,6 @@ def recipe_to_mr_dfs(recipe, grammar):
     return retval
 
 
-def int2str(recipe):
-    """Replace integers in a recipe with strings.
-
-    For example, ("GenToken", 1) will be replaced with ("GenToken", "<int>1").
-
-    Args:
-        recipe: recipe to process.
-
-    Returns:
-        a recipe after the replacement.
-    """
-    recipe = deepcopy(recipe)
-    for idx, action in enumerate(recipe):
-        if action[0] == "GenToken" and isinstance(action[1], int):
-            recipe[idx] = ("GenToken", f"<int>{action[1]}")
-    return recipe
-
-
-def str2int(recipe):
-    """Restore strings in a recipe back to integers.
-
-    For example, ("GenToken", "<int>1") will be replaced with ("GenToken", 1).
-
-    Args:
-        recipe: recipe to process.
-
-    Returns:
-        a recipe after being restored.
-    """
-    recipe = deepcopy(recipe)
-    for idx, action in enumerate(recipe):
-        if action[0] == "GenToken" and action[1].startswith("<int>"):
-            recipe[idx] = ("GenToken", int(action[1][5:]))
-    return recipe
-
-
 class Builder:
     """A builder constructs a MR from a recipe, step by step.
 
@@ -300,7 +264,7 @@ class Builder:
 
     @property
     def history(self):
-        return self._history
+        return thaw(self._history)
 
     def _is_action_allowed(self, action):
         allowed_actions = self.allowed_actions

@@ -7,11 +7,9 @@ from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
 from asdl.recipe import (
     Builder,
-    int2str,
     mr_to_recipe_dfs,
     preprocess_grammar,
     recipe_to_mr_dfs,
-    str2int,
 )
 
 
@@ -205,54 +203,6 @@ def test_recipe_dfs_roundtrip(grammar):
         recipe = mr_to_recipe_dfs(mr, grammar)
         reconstructed_mr = recipe_to_mr_dfs(recipe, grammar)
         assert mr == reconstructed_mr
-
-
-def test_int2str():
-    recipe = [
-        ("ApplyConstr", "List"),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", 1),
-        ("Reduce",),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", 2),
-        ("Reduce",),
-        ("Reduce",),
-    ]
-    new_recipe = int2str(recipe)
-    assert new_recipe == [
-        ("ApplyConstr", "List"),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", "<int>1"),
-        ("Reduce",),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", "<int>2"),
-        ("Reduce",),
-        ("Reduce",),
-    ]
-
-
-def test_str2int():
-    recipe = [
-        ("ApplyConstr", "List"),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", "<int>1"),
-        ("Reduce",),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", "<int>2"),
-        ("Reduce",),
-        ("Reduce",),
-    ]
-    new_recipe = str2int(recipe)
-    assert new_recipe == [
-        ("ApplyConstr", "List"),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", 1),
-        ("Reduce",),
-        ("ApplyConstr", "Constant"),
-        ("GenToken", 2),
-        ("Reduce",),
-        ("Reduce",),
-    ]
 
 
 def test_builder_simple(grammar):
