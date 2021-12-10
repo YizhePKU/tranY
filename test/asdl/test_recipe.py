@@ -5,8 +5,14 @@ from data.conala_v2 import ConalaDataset
 
 from asdl.convert import ast_to_mr
 from asdl.parser import parse as parse_asdl
-from asdl.recipe import (Builder, int2str, mr_to_recipe_dfs,
-                         preprocess_grammar, recipe_to_mr_dfs, str2int)
+from asdl.recipe import (
+    Builder,
+    int2str,
+    mr_to_recipe_dfs,
+    preprocess_grammar,
+    recipe_to_mr_dfs,
+    str2int,
+)
 
 
 @pytest.fixture
@@ -269,6 +275,7 @@ def test_builder_simple(grammar):
         "body": {"_tag": "Name", "id": "x"},
     }
 
+
 def test_builder_assignment(grammar):
     recipe = [
         ("ApplyConstr", "Module"),
@@ -346,3 +353,23 @@ def test_builder_allowed_actions(grammar):
     builder = builder.apply_action(("ApplyConstr", "Constant"))
     assert ("GenToken",) in builder.allowed_actions
     assert len(builder.allowed_actions) == 1
+
+
+def test_builder_roundtrip(grammar):
+    ds = ConalaDataset(
+        "data/conala-train.json",
+        grammar,
+        max_sentence_len=40,
+        max_recipe_len=100,
+        intent_freq_cutoff=2,
+        action_freq_cutoff=2,
+    )
+    for intent, snippet in ds.intent_snippets:
+        pyast = ast.parse(snippet)
+        mr = ast_to_mr(pyast)
+        recipe = mr_to_recipe_dfs(mr, grammar)
+        builder = Builder(grammar)
+        for action in recipe:
+            builder = builder.apply_action(action)
+        reconstructed_mr = builder.result
+        assert mr == reconstructed_mr
