@@ -17,7 +17,7 @@ from asdl.recipe import (
 
 @pytest.fixture
 def grammar():
-    return parse_asdl("src/asdl/Python.asdl")
+    return parse_asdl("src/asdl/python3.asdl")
 
 
 def test_preprocess_grammar(grammar):
@@ -207,6 +207,7 @@ def test_recipe_to_mr_dfs_list(grammar):
 def test_recipe_dfs_roundtrip(grammar):
     ds = ConalaDataset(
         "data/conala-train.json",
+        grammar,
         max_sentence_len=40,
         max_recipe_len=100,
         intent_freq_cutoff=2,

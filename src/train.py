@@ -5,6 +5,7 @@ import torch
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 
+from asdl.parser import parse as parse_asdl
 from data.conala_v2 import ConalaDataset
 from model.seq2seq_v3 import TranY
 
@@ -17,9 +18,12 @@ parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-train_ds = ConalaDataset("data/conala-train.json", **vars(args))
+grammar = parse_asdl("src/asdl/python3.asdl")
+
+train_ds = ConalaDataset("data/conala-train.json", grammar, **vars(args))
 dev_ds = ConalaDataset(
     "data/conala-dev.json",
+    grammar,
     intent_vocab=train_ds.intent_vocab,
     action_vocab=train_ds.action_vocab,
     **vars(args),

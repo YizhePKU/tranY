@@ -2,7 +2,6 @@ import ast
 import json
 import re
 
-from asdl.parser import parse as parse_asdl
 from nltk.tokenize import word_tokenize
 import torch
 from asdl.convert import ast_to_mr
@@ -127,6 +126,7 @@ class ConalaDataset:
     def __init__(
         self,
         filepath,
+        grammar,
         max_sentence_len,
         max_recipe_len,
         intent_freq_cutoff,
@@ -135,7 +135,6 @@ class ConalaDataset:
         action_vocab=None,
         **kwargs,
     ):
-        grammar = parse_asdl("src/asdl/Python.asdl")
         self.intent_snippets = load_conala_from_json(filepath)
         self.intent_snippet_slots = process_and_filter(self.intent_snippets)
 

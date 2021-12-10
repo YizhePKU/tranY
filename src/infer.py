@@ -32,9 +32,12 @@ parser = ConalaDataset.add_argparse_args(parser)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
-train_ds = ConalaDataset("data/conala-train.json", **vars(args))
+grammar = parse_asdl("src/asdl/python3.asdl")
+
+train_ds = ConalaDataset("data/conala-train.json", grammar, **vars(args))
 dev_ds = ConalaDataset(
     "data/conala-dev.json",
+    grammar,
     intent_vocab=train_ds.intent_vocab,
     action_vocab=train_ds.action_vocab,
     **vars(args),
@@ -64,7 +67,7 @@ while True:
         beam_width=15,
         result_count=10,
         action_vocab=train_ds.action_vocab,
-        grammar=parse_asdl("src/asdl/Python.asdl")
+        grammar=grammar,
     )
 
     for result in results:
