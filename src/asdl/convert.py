@@ -35,6 +35,9 @@ def mr_to_ast(mr):
     if isinstance(mr, dict):
         constructor = getattr(ast, mr["_tag"])
         kwargs = {}
+        if mr["_tag"] == "Module":
+            # add fake type_ignores
+            kwargs["type_ignores"] = []
         if issubclass(constructor, ast.expr) or issubclass(constructor, ast.stmt):
             # add fake lineno
             kwargs["lineno"] = 1

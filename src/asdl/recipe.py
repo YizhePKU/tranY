@@ -14,8 +14,9 @@ but other encodings are also possible.
 """
 
 from collections import deque, namedtuple
-from copy import deepcopy
 from functools import cache
+
+from pyrsistent import get_in, thaw, v, m
 
 import asdl.parser
 
@@ -215,7 +216,7 @@ class Builder:
     def result(self):
         """Return the constructed MR so far, or None if the builder is empty."""
         if "toplevel" in self._result:
-            return self._result["toplevel"]
+            return thaw(self._result["toplevel"])
         else:
             return None
 

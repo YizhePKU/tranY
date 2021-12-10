@@ -4,7 +4,6 @@ import re
 
 import torch
 from nltk.translate.bleu_score import SmoothingFunction, sentence_bleu
-from pyrsistent import thaw
 
 from asdl.convert import mr_to_ast
 from asdl.parser import parse as parse_asdl
@@ -66,7 +65,7 @@ dev_ds = ConalaDataset(
 
 dev_dl = torch.utils.data.DataLoader(dev_ds, batch_size=64, collate_fn=collate_fn)
 model = TranY.load_from_checkpoint(
-    "tb_logs/TranY/post_conala_v2_early_stop/checkpoints/epoch=38-step=1169.ckpt"
+    "tb_logs/TranY/simplified_asdl_early_stop/checkpoints/epoch=25-step=779.ckpt"
 )
 model.eval()
 
@@ -88,23 +87,22 @@ for idx in range(len(dev_ds)):
         sentence,
         sentence_length,
         beam_width=15,
-        result_count=1,
+        result_count=10,
         action_vocab=train_ds.action_vocab,
         grammar=grammar,
     )
     if results:
-        mr = thaw(results[0][1])
+        mr = results[0][1]
         pyast = mr_to_ast(mr)
         infered_snippet = ast.unparse(pyast)
         print(f"infered_snippet: {infered_snippet}")
         unprocessed_infered_snippet = unprocess_snippet(infered_snippet, slot)
         print(f"unprocess_infered_snippet: {unprocessed_infered_snippet}")
-
         bleu = snippet_bleu(unprocessed_infered_snippet, snippet)
-        print(f"bleu: {bleu}")
+        print(f"bleu: {bleu:.4f}")
     else:
         print("Failed to infer any snippet")
         bleu = 0
 
     scores.append(bleu)
-    print(f"Running average: {sum(scores) / len(scores)}, {len(scores)} samples")
+    print(f"Running average: {sum(scores) / len(scores):.4f}, {len(scores)} samples")
