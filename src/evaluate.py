@@ -89,15 +89,19 @@ for idx in range(len(dev_ds)):
         action_vocab=train_ds.action_vocab,
         grammar=parse_asdl("src/asdl/Python.asdl"),
     )
-    mr = thaw(results[0][1])
-    pyast = mr_to_ast(mr)
-    infered_snippet = ast.unparse(pyast)
-    print(f"infered_snippet: {infered_snippet}")
-    unprocessed_infered_snippet = unprocess_snippet(infered_snippet, slot)
-    print(f"unprocess_infered_snippet: {unprocessed_infered_snippet}")
+    if results:
+        mr = thaw(results[0][1])
+        pyast = mr_to_ast(mr)
+        infered_snippet = ast.unparse(pyast)
+        print(f"infered_snippet: {infered_snippet}")
+        unprocessed_infered_snippet = unprocess_snippet(infered_snippet, slot)
+        print(f"unprocess_infered_snippet: {unprocessed_infered_snippet}")
 
-    bleu = snippet_bleu(unprocessed_infered_snippet, snippet)
-    print(f"bleu: {bleu}")
+        bleu = snippet_bleu(unprocessed_infered_snippet, snippet)
+        print(f"bleu: {bleu}")
+    else:
+        print("Failed to infer any snippet")
+        bleu = 0
 
     scores.append(bleu)
     print(f"Running average: {sum(scores) / len(scores)}, {len(scores)} samples")
