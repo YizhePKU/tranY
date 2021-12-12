@@ -133,7 +133,6 @@ class ConalaDataset:
         action_freq_cutoff,
         intent_vocab=None,
         action_vocab=None,
-        **kwargs,
     ):
         self.intent_snippets = load_conala_from_json(filepath)
         self.intent_snippet_slots = process_and_filter(self.intent_snippets)

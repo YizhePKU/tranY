@@ -1,12 +1,12 @@
-all: split-train-dev download-punkt
+all: split-dataset download-punkt
 
-split-train-dev:
+split-dataset:
 	mkdir -p data/interim
 	unzip data/raw/conala.zip
 	mv conala-corpus/conala-train.json data/interim
 	mv conala-corpus/conala-test.json data/
 	rm -r conala-corpus
-	python3 src/split_train_dev.py
+	python3 src/split_dataset.py
 
 download-punkt:
 	mkdir -p ~/nltk_data/tokenizers

@@ -54,13 +54,13 @@ pytest
 6. Train the model.
 
 ```
-python3 src/train.py
+python3 src/main.py train my_model_name
 ```
 
  Make sure your working directory is at the project root (instead of `src/`).
 
-7. Evaluate the model. The model path is currently hardcoded into `src/evaluate.py`.
+7. Evaluate the model.
 
 ```
-python3 src/evaluate.py
+python3 src/main.py evaluate my_model_name
 ```

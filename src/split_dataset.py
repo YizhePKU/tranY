@@ -10,5 +10,5 @@ dev = data[int(n * 0.8) :]
 with open("data/conala-train.json", "w") as file:
     json.dump(train, file)
 
-with open("data/conala-dev.json", "w") as file:
+with open("data/conala-val.json", "w") as file:
     json.dump(dev, file)

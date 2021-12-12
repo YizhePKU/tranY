@@ -34,7 +34,6 @@ class TranY(pl.LightningModule):
         decoder_nlayers,
         dropout_p,
         learning_rate,
-        **kwargs,
     ):
         # because we use dot-product cross-attention between decoder and encoder,
         # they need to have compatible hidden size
@@ -147,6 +146,10 @@ class TranY(pl.LightningModule):
             Node(0, init_action, init_att_output, init_decoder_state, init_builder)
         )
         while len(results) < result_count and len(nodes) > 0:
+            # print("Current nodes:")
+            # for node in nodes:
+            #     print("  ", node.score, node.builder.history)
+            # print()
             new_nodes = []
             for node in nodes:
                 score, prev_action, prev_att_output, decoder_state, builder = node
