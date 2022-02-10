@@ -1,9 +1,8 @@
 # python>=3.9
-torch==1.10.0
-transformers==4.9.2
-pytest==6.2.5
-tensorboard==2.6.0
-torch-tb-profiler==0.2.1
-nltk==3.6.3
-pyrsistent==0.18.0
-pytorch-lightning==1.5.2
+torch
+transformers
+pytest
+nltk
+pyrsistent
+pytorch-lightning
+wandb
